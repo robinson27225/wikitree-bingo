@@ -21,13 +21,13 @@ The pages are static files. A small Cloudflare Worker with a Durable Object rela
    npm run deploy:worker
    ```
    Edit `ALLOWED_ORIGINS` in `worker/wrangler.toml` to match the site that serves the pages (for GitHub Pages, `https://<user>.github.io`).
-2. **Point the pages at it.** Set the deployed Worker URL as the fallback in `shared/config.js` (`WORKER_URL`). Any page also accepts `?worker=https://…` to override it.
+2. **Point the pages at it.** The deployed Worker URL is the default in `shared/config.js` (`WORKER_URL`); change it there if you redeploy under another name. Any page also accepts `?worker=https://…` to override it.
 3. **Pages.** Publish the repo root with GitHub Pages (Settings, Pages, branch `main`, folder `/`).
 
 ## Local development and tests
 ```
 npm run dev:worker      # Worker on http://127.0.0.1:8787
-npm run serve           # static pages on http://127.0.0.1:8000
+npm run serve           # static pages on http://127.0.0.1:8000, open them with ?worker=http://127.0.0.1:8787
 npm test                # unit tests for shared/bingo.js
 node test/e2e.cjs       # one host + three players, full game (needs Playwright)
 ```
