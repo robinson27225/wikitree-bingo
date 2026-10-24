@@ -34,7 +34,7 @@ The Worker reads WikiTree's [Prize Winners](https://www.wikitree.com/wiki/Space:
 - Someone who wins during a session can't win again later in that same session.
 - The host lobby shows how many IDs were excluded, with a **Re-check** button. The list is refreshed when a game starts.
 - If the page can't be read, the game still runs and the host sees a warning that eligibility is not being checked. If some event headings have dates the parser can't read, those winners are not excluded and the host sees which headings were skipped.
-- To see what the server read, open `<your-worker-url>/api/ineligible` in a browser.
+- To see what the server read, open `<your-worker-url>/api/ineligible` in a browser. If it can't find a table, the reply includes a `tried` list showing what each address returned (size, type, the first 200 characters), which makes the cause easy to spot.
 
 ## Local development and tests
 ```

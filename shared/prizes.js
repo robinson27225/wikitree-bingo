@@ -49,6 +49,14 @@ export function windowStart(now, months = WINDOW_MONTHS) {
   return new Date(Date.UTC(yy, mm, Math.min(d, daysIn(yy, mm))));
 }
 
+// A rendered page, as opposed to wikitext. Pages are full of script/style lines that start with
+// "{" or "!", so look for document tags rather than for the absence of wiki markup.
+export function looksLikeHtml(source) {
+  const s = String(source);
+  if (/^\s*\{\|/m.test(s) && !/<\s*(html|body|table)\b/i.test(s.slice(0, 4000))) return false;
+  return /<\s*(!doctype|html|head|body)\b/i.test(s.slice(0, 4000)) || /<\s*(table|h[1-6])\b/i.test(s);
+}
+
 // The rendered page as wikitext-shaped lines, so one parser handles both.
 export function htmlToWikitext(html) {
   const decode = s => s.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'")
@@ -74,7 +82,7 @@ export function htmlToWikitext(html) {
 //   found     how many distinct WikiTree IDs the page listed in total
 //   warnings  things the host should know (a heading whose date could not be read, ...)
 export function parsePrizeWinners(source, now = new Date()) {
-  const text = /<(h[1-6]|table|tr)\b/i.test(source) && !/^\s*[=|{!]/m.test(source) ? htmlToWikitext(source) : String(source);
+  const text = looksLikeHtml(source) ? htmlToWikitext(source) : String(source);
   const start = windowStart(now), ids = {}, all = new Set(), warnings = [], seenWarn = new Set();
   let heading = "", section = null, sections = 0;
 
@@ -110,9 +118,10 @@ export function parsePrizeWinners(source, now = new Date()) {
     if (h) { enter(h[2]); continue; }
     if (!/^\|[^-}+]/.test(line)) continue;                      // only table data rows
     const cells = line.slice(1).split("||").map(c => c.trim());
-    const id = cells[0].replace(/^\[\[([^\]|]+)(?:\|[^\]]*)?\]\]$/, "$1").trim();             // [[Smith-1]] or [[Smith-1|Smith-1]]
-    if (!ID_RE.test(id)) continue;
-    record(id, cells.slice(1));
+    const clean = c => c.replace(/^\[\[([^\]|]+)(?:\|[^\]]*)?\]\]$/, "$1").trim();   // [[Smith-1]] or [[Smith-1|Smith-1]]
+    const at = cells.slice(0, 2).findIndex(c => ID_RE.test(clean(c)));                  // the ID is the first column (or the second, after an icon)
+    if (at < 0) continue;
+    record(clean(cells[at]), cells.filter((_, i) => i !== at));
   }
   return { ids, warnings, found: all.size, sections };
 }

@@ -4,7 +4,7 @@ import {
   CARD_WORDS, FREE, MAX_WORDS, MAX_WORD_LEN, MIN_WORDS,
   checkClaim, cleanName, isWikiTreeId, makeCard, cardSignature, normWord, randInt
 } from "../../shared/bingo.js";
-import { parsePrizeWinners, idKey } from "../../shared/prizes.js";
+import { parsePrizeWinners, looksLikeHtml, idKey } from "../../shared/prizes.js";
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";   // no I, L, O, 0, 1
 const MAX_PLAYERS = 500;
@@ -26,17 +26,20 @@ async function getPrizeList(env, force = false) {
   if (!force && prizeMemo && Date.now() - prizeMemo.at < PRIZE_TTL_MS) return prizeMemo.data;
   const urls = env.PRIZE_PAGE_URL ? [env.PRIZE_PAGE_URL] : [PRIZE_PAGE, PRIZE_PAGE_HTML];
   let lastError = "no data";
+  const tried = [];                                          // what each address returned, to make a failure diagnosable
   for (const url of urls) {
     try {
-      const r = parsePrizeWinners(await fetchPage(url), new Date());
+      const text = await fetchPage(url);
+      const r = parsePrizeWinners(text, new Date());
+      tried.push({ url, bytes: text.length, kind: looksLikeHtml(text) ? "html" : "wikitext", sections: r.sections, found: r.found, start: text.replace(/\s+/g, " ").slice(0, 200) });
       if (!r.found) { lastError = "the page had no winners table I could read"; continue; }
       const data = { ok: true, ids: r.ids, warnings: r.warnings, found: r.found, fetchedAt: new Date().toISOString(), source: url };
       prizeMemo = { at: Date.now(), data };
       return data;
-    } catch (e) { lastError = String(e.message || e); }
+    } catch (e) { lastError = String(e.message || e); tried.push({ url, error: lastError }); }
   }
   if (prizeMemo && prizeMemo.data.ok) return { ...prizeMemo.data, stale: true };   // better an old list than none
-  return { ok: false, error: lastError, fetchedAt: new Date().toISOString() };
+  return { ok: false, error: lastError, tried, fetchedAt: new Date().toISOString() };
 }
 
 const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))]

@@ -72,3 +72,36 @@ test("idKey: case and spacing do not matter", () => {
   assert.equal(idKey(" Robinson-27225 "), idKey("robinson-27225"));
   assert.equal(idKey("De La Cruz-9"), idKey("de_la_cruz-9"));
 });
+
+test("parsePrizeWinners: a noisy rendered page (scripts, styles, nested spans, icon cell)", () => {
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><title>Space:Prize Winners | WikiTree</title>
+<style>
+.x { color: red }
+!important-looks-like-wiki
+</style>
+<script>
+{
+  "ga": true
+}
+|-weird
+</script></head>
+<body>
+<h2><span class="mw-headline" id="Prize_Winners">Prize Winners</span> <span class="editsection"><a href="/x">edit</a></span></h2>
+<h3><span class="mw-headline">Current Event Winners</span></h3>
+<table class="wikitable sortable"><tbody>
+<tr><th>WikiTree ID</th><th>First</th><th>Last</th><th>Event</th></tr>
+<tr><td><a href="/wiki/Hartley-99" title="Ann Hartley"><span>Hartley-99</span></a></td><td>Ann</td><td>Hartley</td><td>Now</td></tr>
+</tbody></table>
+<h3>Previous Event Winners</h3>
+<h4><span class="mw-headline">2-5 October 2026</span></h4>
+<table class="wikitable"><tbody>
+<tr><td><img src="/i.png" alt=""></td><td><a href="/wiki/Zurcher-160">Zurcher-160</a></td><td>Randi</td></tr>
+</tbody></table>
+<h4>30 Nov - 3 Dec 2025</h4>
+<table class="wikitable"><tbody><tr><td><a href="/wiki/Old-1">Old-1</a></td><td>Olga</td></tr></tbody></table>
+</body></html>`;
+  const r = parsePrizeWinners(html, NOW);
+  assert.deepEqual(r.ids, { "hartley-99": "current", "zurcher-160": "2026-10-05" });
+  assert.equal(r.found, 3);
+});
