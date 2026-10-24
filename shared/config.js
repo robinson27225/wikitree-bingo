@@ -6,7 +6,7 @@ export const AUTHOR_ID = "Robinson-27225";
 // Base URL of the deployed Cloudflare Worker (see README). Override without editing this
 // file by opening a page with ?worker=...  e.g. ?worker=http://127.0.0.1:8787 for local dev.
 const param = (() => { try { return new URLSearchParams(location.search).get("worker"); } catch (e) { return null; } })();
-export const WORKER_URL = (param || "https://wikitreebingo.workers.dev").replace(/\/+$/, "");
+export const WORKER_URL = (param || "https://wikitree-bingo.wikitreebingo.workers.dev").replace(/\/+$/, "");
 
 // WikiTree brand palette
 export const PALETTE = {
