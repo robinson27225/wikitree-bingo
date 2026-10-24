@@ -85,11 +85,11 @@ const norm = s => s.trim().toLowerCase();
   const drawnIdx = await idxOf(p0, firstWord.replace(/^\s*/, ""));
   const other = (await cardOf(p0)).findIndex((w, i) => i !== 12 && i !== drawnIdx);
   await cell[other].click();
-  assert.equal(await p0.$$eval("#grid .daub", d => d.length), 0, "an undrawn word is not daubed");
+  assert.equal(await p0.$$eval("#grid .daub", d => d.length), 1, "only the free space is daubed");
   await cell[drawnIdx].click();
-  assert.equal(await p0.$$eval("#grid .daub", d => d.length), 1);
+  assert.equal(await p0.$$eval("#grid .daub", d => d.length), 2);
   await cell[drawnIdx].click();
-  assert.equal(await p0.$$eval("#grid .daub", d => d.length), 0, "second tap un-daubs");
+  assert.equal(await p0.$$eval("#grid .daub", d => d.length), 1, "second tap un-daubs");
 
   // a premature claim is refused
   await p0.click("#bingoBtn");

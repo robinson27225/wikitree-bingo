@@ -34,17 +34,18 @@ input[type=text]{width:100%;font:inherit;padding:12px 14px;border:2px solid var(
 .bingo-head span:nth-child(1){background:var(--gold);color:var(--forest);text-shadow:none}
 .bingo-head span:nth-child(2){background:var(--orange)}
 .bingo-head span:nth-child(3){background:var(--lime)}
-.bingo-head span:nth-child(4){background:var(--leaf);color:var(--forest);text-shadow:none}
-.bingo-head span:nth-child(5){background:var(--forest)}
+.bingo-head span:nth-child(4){background:var(--yellow);color:var(--forest);text-shadow:none}
+.bingo-head span:nth-child(5){background:var(--leaf);color:var(--forest);text-shadow:none}
 
 /* footer: logo lower-left, tool name + version lower-right */
 .site-foot{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:6px 14px;pointer-events:none;z-index:5}
 .site-foot a{pointer-events:auto;text-decoration:none}
-.foot-logo img{height:clamp(46px,8vh,84px);width:auto;display:block}
+.foot-logo img{height:clamp(58px,9vh,100px);width:auto;display:block;background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .foot-tool{font-size:13px;color:var(--muted);background:rgba(255,255,255,.85);border-radius:8px;padding:3px 8px}
 .foot-tool:hover{text-decoration:underline}
-.dark .foot-logo img{background:#fff;border-radius:10px;padding:2px 6px}
 .dark .foot-tool{background:rgba(0,0,0,.35);color:var(--pale)}
+
+@media (max-width:480px){.foot-logo img{height:48px}.foot-tool{font-size:11px}}
 
 @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes pop{0%{transform:scale(.6);opacity:.2}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}

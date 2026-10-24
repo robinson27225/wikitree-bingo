@@ -1,5 +1,5 @@
 export const TOOL_NAME = "WikiTree Bingo";
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
 export const AUTHOR_URL = "https://www.wikitree.com/wiki/Robinson-27225";
 export const AUTHOR_ID = "Robinson-27225";
 

@@ -7,7 +7,7 @@
 <link rel="icon" href="assets/logo-mark.png">
 <link rel="stylesheet" href="shared/style.css">
 <style>
-body{padding:14px 12px 110px}
+body{padding:14px 12px 130px}
 .wrap{max-width:760px;margin:0 auto}
 .panel{background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:20px;max-width:480px;margin:18px auto}
 .panel h1{color:var(--forest);font-size:1.7em;text-align:center;margin-bottom:4px}
@@ -32,17 +32,18 @@ body.view-phone .cardwrap{max-width:400px}
 .card{container-type:inline-size;margin-top:10px}
 .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(3px,1cqw,8px);margin-top:clamp(4px,1.2cqw,10px)}
 .cell{position:relative;aspect-ratio:1;background:#fff;border:2px solid var(--leaf);border-radius:clamp(8px,2cqw,14px);padding:2px;
-  display:flex;align-items:center;justify-content:center;text-align:center;color:var(--ink);font:700 clamp(10px,3.3cqw,21px)/1.1 var(--font);
-  overflow:hidden;overflow-wrap:anywhere;hyphens:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  display:flex;align-items:center;justify-content:center;text-align:center;color:var(--ink);font:700 14px/1.08 var(--font);
+  overflow:hidden;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .cell:active{background:var(--pale)}
 .cell.shake{animation:shake .35s}
 .cell img{width:86%;height:86%;object-fit:contain;position:relative;z-index:1}
 .cell.free{background:var(--butter);border-color:var(--gold);cursor:default}
-.cell span{position:relative;z-index:1}
+.cell span{position:relative;z-index:1;display:block;overflow-wrap:normal;word-break:keep-all;hyphens:none}
 /* a marker daub, like a bingo dauber on paper */
-.daub{position:absolute;inset:8%;border-radius:46% 54% 50% 50% / 52% 46% 54% 48%;pointer-events:none;z-index:2;
-  background:radial-gradient(circle at 38% 34%,rgba(243,124,38,.95) 0,rgba(243,124,38,.78) 55%,rgba(214,92,12,.7) 100%);
-  mix-blend-mode:multiply;animation:pop .28s ease-out both;box-shadow:0 0 0 2px rgba(243,124,38,.25)}
+/* like a paper dauber: a ring of ink with a faded middle, so the word stays readable */
+.daub{position:absolute;inset:5%;border-radius:47% 53% 50% 50% / 52% 47% 53% 48%;pointer-events:none;z-index:2;
+  background:radial-gradient(closest-side,rgba(243,124,38,.08) 0,rgba(243,124,38,.12) 42%,rgba(243,124,38,.8) 68%,rgba(224,98,14,.88) 86%,rgba(243,124,38,.15) 100%);
+  mix-blend-mode:multiply;animation:pop .28s ease-out both}
 
 .claimrow{display:flex;justify-content:center;margin-top:16px}
 .bingobtn{background:var(--orange);color:#fff;font-size:1.6em;letter-spacing:4px;padding:14px 40px;box-shadow:0 5px 0 #b95a14}
@@ -108,6 +109,7 @@ body.view-phone .cardwrap{max-width:400px}
 import { renderFooter } from "./shared/config.js";
 import { connect, store } from "./shared/net.js";
 import { FREE, isWikiTreeId, normWord, cleanName } from "./shared/bingo.js";
+import { fitText } from "./shared/fit.js";
 
 renderFooter(document.getElementById("foot"));
 const $ = id => document.getElementById(id);
@@ -154,7 +156,7 @@ function renderGrid() {
     b.type = "button"; b.className = "cell"; b.dataset.i = i;
     if (i === FREE) {
       b.classList.add("free"); b.disabled = true; b.setAttribute("aria-label", "Free space");
-      b.innerHTML = `<img src="assets/logo-mark.png" alt="WikiTree free space">`;   // the logo is the free daub
+      b.innerHTML = `<img src="assets/logo-mark.png" alt="WikiTree free space"><div class="daub"></div>`;   // free space: the logo, daubed like any other
     } else {
       b.innerHTML = `<span></span>`; b.firstChild.textContent = w;
       b.setAttribute("aria-pressed", daubed.has(i));
@@ -163,7 +165,18 @@ function renderGrid() {
     }
     g.appendChild(b);
   });
+  fitCells();
 }
+
+// Words never break: each one is scaled down until it fits inside its square.
+function fitCells() {
+  for (const c of document.querySelectorAll("#grid .cell:not(.free)")) {
+    const s = c.firstElementChild;
+    fitText(s, c, { fw: 0.9, fh: 0.9, max: c.clientWidth * 0.22, min: 7 });
+  }
+}
+new ResizeObserver(() => fitCells()).observe($("grid"));
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitCells);
 
 function toggle(i, b) {
   if (status === "won") return;

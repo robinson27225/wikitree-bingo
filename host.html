@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="shared/style.css">
 <style>
 :root{--hbg:#16301f;--hpanel:#1f3d2a;--hline:#35593f}
-body.dark{background:radial-gradient(1200px 700px at 50% -10%,#2e5a3b 0,var(--hbg) 62%) fixed,var(--hbg);color:#f6faea;padding-bottom:100px}
+body.dark{background:radial-gradient(1200px 700px at 50% -10%,#2e5a3b 0,var(--hbg) 62%) fixed,var(--hbg);color:#f6faea;padding-bottom:0}
 .screen{display:none;min-height:100vh;padding:20px 18px 90px}
 .screen.active{display:flex;flex-direction:column;align-items:center;animation:fade .35s both}
 .dark h1{font-size:clamp(28px,4.5vw,44px);text-align:center;color:var(--gold)}
@@ -42,29 +42,31 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
 .logobtn:active{transform:scale(.97)}
 
 /* stage */
-#stage{height:100vh;min-height:0;padding:10px 18px 84px;align-items:stretch;overflow:hidden}
+#stage{height:100vh;min-height:0;padding:10px 18px 84px;align-items:stretch;overflow:clip}
 .topline{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .pill{background:var(--hpanel);border:2px solid var(--hline);border-radius:999px;padding:6px 16px;font-weight:700;font-size:clamp(16px,2vw,24px);color:var(--pale)}
 .pill b{color:var(--gold);font-variant-numeric:tabular-nums}
-.ribbon{display:flex;flex-wrap:wrap;gap:6px;max-height:20vh;overflow:auto;padding:8px 0;scroll-behavior:smooth;min-height:46px;flex:none}
+.ribbon{display:flex;flex-wrap:wrap;gap:6px;max-height:16vh;overflow:auto;padding:8px 0;scroll-behavior:smooth;min-height:46px;flex:none}
 .chip{background:var(--hpanel);border:2px solid var(--hline);border-radius:999px;padding:3px 12px;font-weight:700;font-size:clamp(13px,1.7vw,20px);color:var(--pale);animation:pop .3s both;white-space:nowrap}
 .chip small{color:var(--gold);margin-right:6px}
 .chip.new{background:var(--gold);border-color:var(--gold);color:var(--forest)}
 .chip.new small{color:var(--forest)}
 .ribbon-empty{color:#b9d1bd;padding:6px 4px}
-.arena{flex:1;display:grid;grid-template-columns:minmax(260px,1fr) minmax(300px,1.2fr);gap:20px;align-items:center;min-height:0;margin-top:2px;overflow:hidden}
-.cagebox{display:flex;justify-content:center}
-#cage{width:min(46vw,50vh);aspect-ratio:1;max-width:100%}
-.wordpanel{display:flex;flex-direction:column;align-items:center;gap:min(16px,1.8vh);text-align:center}
+.arena{flex:1;display:grid;grid-template-columns:minmax(220px,.7fr) minmax(300px,1.6fr);gap:20px;align-items:stretch;min-height:0;margin-top:2px;overflow:hidden}
+.cagebox{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:min(18px,2vh);container-type:size;min-height:0}
+#cage{width:min(100cqw,calc(100cqh - 90px));aspect-ratio:1;max-width:100%}
+.wordpanel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;container-type:size;min-height:0}
 .drawnlbl{color:var(--pale);letter-spacing:4px;text-transform:uppercase;font-size:clamp(14px,1.8vw,22px)}
-.ballword{container-type:inline-size;width:min(40vw,40vh,420px);aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;
+.ballword{width:min(96cqw,calc(100cqh - 44px));flex:none;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;
   background:radial-gradient(circle at 50% 50%,var(--gold) 0,var(--gold) 55%,#b9820a 100%);box-shadow:inset -18px -22px 40px rgba(0,0,0,.28),0 22px 40px rgba(0,0,0,.45);position:relative}
 .ballword .inner{width:74%;aspect-ratio:1;border-radius:50%;background:#fff;color:var(--forest);display:flex;align-items:center;justify-content:center;text-align:center;
-  padding:6%;font-weight:700;line-height:1.05;overflow:hidden;overflow-wrap:anywhere;border:max(5px,.9vmin) solid var(--orange)}
+  font-weight:700;line-height:1.05;overflow:hidden;border:max(5px,.9vmin) solid var(--orange)}
+.ballword .inner span{display:block;overflow-wrap:normal;word-break:keep-all;hyphens:none}
 .ballword.land{animation:pop .5s ease-out both}
-.ballword.idle .inner{color:var(--muted);font-size:clamp(18px,2.4vw,30px)}
+.ballword.idle .inner{color:var(--muted)}
+.ballword.idle .inner span{font-size:clamp(18px,2.2vw,30px);width:78%}
 .ballword::after{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;background:radial-gradient(circle at 31% 25%,rgba(255,255,255,.55) 0,rgba(255,255,255,0) 33%)}
-.nextbtn{font-size:clamp(20px,2.6vw,30px);padding:14px 38px}
+.nextbtn{font-size:clamp(20px,2.4vw,30px);padding:14px 34px;flex:none}
 
 /* winner overlay */
 #win{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;
@@ -86,7 +88,7 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
 #win .primary{margin-top:min(18px,2vh);font-size:clamp(18px,2.4vw,28px);padding:12px 40px;animation:fade .6s 1.3s both;position:relative}
 .mute{position:fixed;right:12px;bottom:44px;z-index:60;background:var(--hpanel);color:var(--pale);border:2px solid var(--hline);border-radius:999px;padding:6px 14px;font-size:14px}
 .conn{position:fixed;top:0;left:0;right:0;background:var(--orange);color:#fff;text-align:center;font-weight:700;padding:4px;z-index:70}
-@media (max-width:820px){#stage{height:auto;min-height:100vh;overflow:visible}.arena{grid-template-columns:1fr}#cage{width:min(80vw,46vh)}}
+@media (max-width:820px){#stage{height:auto;min-height:100vh;overflow:visible}.arena{grid-template-columns:1fr}.cagebox,.wordpanel{container-type:normal}#cage{width:min(80vw,46vh)}.ballword{width:min(84vw,56vh)}}
 </style>
 </head>
 <body class="dark">
@@ -150,11 +152,11 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
   </div>
   <div class="ribbon" id="ribbon" aria-label="Words drawn so far" aria-live="polite"></div>
   <div class="arena">
-    <div class="cagebox"><canvas id="cage" width="640" height="640" aria-label="Spinning bingo cage"></canvas></div>
+    <div class="cagebox"><canvas id="cage" width="640" height="640" aria-label="Spinning bingo cage"></canvas>
+      <button class="primary nextbtn" id="nextBtn" type="button">Draw first word</button></div>
     <div class="wordpanel">
       <div class="drawnlbl" id="drawnLbl">Ready</div>
-      <div class="ballword idle" id="ballWord"><div class="inner" id="wordText">Press the button to draw the first word</div></div>
-      <button class="primary nextbtn" id="nextBtn" type="button">Draw first word</button>
+      <div class="ballword idle" id="ballWord"><div class="inner"><span id="wordText">Press the button to draw the first word</span></div></div>
     </div>
   </div>
 </main>
@@ -176,6 +178,7 @@ import { renderFooter, WORKER_URL, BALL_COLORS } from "./shared/config.js";
 import { connect, createRoom, store } from "./shared/net.js";
 import { parseCsv, MIN_WORDS } from "./shared/bingo.js";
 import { Sound } from "./shared/sound.js";
+import { fitText } from "./shared/fit.js";
 
 renderFooter(document.getElementById("foot"));
 const $ = id => document.getElementById(id);
@@ -283,11 +286,13 @@ function renderRibbon() {
   });
   r.scrollTop = r.scrollHeight;
 }
-function fitWord(el, text) {
-  el.textContent = text;
-  const len = text.length;
-  el.style.fontSize = Math.max(5.5, Math.min(18, 150 / len)) + "cqw";   // relative to the ball, so words wrap inside it
+let shownWord = "";
+function fitWord(el, text) {                              // words never break: scale down to fit the round ball
+  shownWord = text; el.textContent = text;
+  const box = el.parentElement;
+  fitText(el, box, { fw: 0.78, fh: 0.6, max: box.clientWidth * 0.3, min: 10 });
 }
+new ResizeObserver(() => { if (shownWord && $("ballWord").className.includes("ball") && !$("ballWord").classList.contains("idle")) fitWord($("wordText"), shownWord); }).observe($("ballWord"));
 function renderAll() {
   renderCounts();
   $("bigCode").textContent = room.code; $("stageCode").textContent = room.code;
@@ -300,7 +305,7 @@ function renderAll() {
   const last = state.called[state.called.length - 1];
   const ball = $("ballWord"), txt = $("wordText");
   if (last) { ball.className = "ballword"; fitWord(txt, last); $("drawnLbl").textContent = `Word ${state.called.length}`; $("nextBtn").textContent = "Next word"; }
-  else { ball.className = "ballword idle"; txt.style.fontSize = ""; txt.textContent = "Press the button to draw the first word"; $("drawnLbl").textContent = "Ready"; $("nextBtn").textContent = "Draw first word"; }
+  else { ball.className = "ballword idle"; shownWord = ""; txt.style.fontSize = ""; txt.style.width = ""; txt.textContent = "Press the button to draw the first word"; $("drawnLbl").textContent = "Ready"; $("nextBtn").textContent = "Draw first word"; }
   $("nextBtn").disabled = false;
   if (state.status === "won") celebrate(); else hideWin();
 }
@@ -315,7 +320,7 @@ function doDraw() { if (spinning) return; $("nextBtn").disabled = true; net.send
 function spinTo(word) {
   spinning = true;
   $("nextBtn").disabled = true; $("drawnLbl").textContent = "Drawing…";
-  const ball = $("ballWord"); ball.className = "ballword idle"; $("wordText").style.fontSize = ""; $("wordText").textContent = "…";
+  const ball = $("ballWord"); ball.className = "ballword idle"; shownWord = ""; $("wordText").style.fontSize = ""; $("wordText").style.width = ""; $("wordText").textContent = "…";
   Sound.startSpin();
   cage.spin(FAST ? 700 : 4200, () => {
     Sound.landed();
