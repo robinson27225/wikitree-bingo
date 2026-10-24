@@ -52,7 +52,7 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
 .chip.new{background:var(--gold);border-color:var(--gold);color:var(--forest)}
 .chip.new small{color:var(--forest)}
 .ribbon-empty{color:#b9d1bd;padding:6px 4px}
-.arena{flex:1;display:grid;grid-template-columns:minmax(220px,.7fr) minmax(300px,1.6fr);gap:20px;align-items:stretch;min-height:0;margin-top:2px;overflow:hidden}
+.arena{flex:1;display:grid;grid-template-columns:minmax(220px,.7fr) minmax(300px,1.6fr);gap:20px;align-items:stretch;min-height:0;margin-top:2px;overflow:visible}
 .cagebox{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:min(18px,2vh);container-type:size;min-height:0}
 #cage{width:min(100cqw,calc(100cqh - 90px));aspect-ratio:1;max-width:100%}
 .wordpanel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;container-type:size;min-height:0}
@@ -63,6 +63,20 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
   font-weight:700;line-height:1.05;overflow:hidden;border:max(5px,.9vmin) solid var(--orange)}
 .ballword .inner span{display:block;overflow-wrap:normal;word-break:keep-all;hyphens:none}
 .ballword.land{animation:pop .5s ease-out both}
+.ballword.land::before{content:"";position:absolute;inset:0;border-radius:50%;border:8px solid var(--yellow);pointer-events:none;animation:shock .9s ease-out forwards}
+@keyframes shock{from{transform:scale(1);opacity:.95}to{transform:scale(1.22);opacity:0}}
+/* while drawing: the ball tumbles, a sheen swirls round it and the words flicker past, slowing to a stop */
+.ballword .swirl{position:absolute;inset:0;border-radius:50%;pointer-events:none;opacity:0;
+  background:conic-gradient(rgba(255,255,255,0) 0 30deg,rgba(255,255,255,.7) 75deg,rgba(255,255,255,0) 120deg 200deg,rgba(243,124,38,.55) 250deg,rgba(255,255,255,0) 300deg)}
+.ballword .inner{position:relative}
+.ballword.drawing{animation:tumble .55s ease-in-out infinite,glow 1.1s ease-in-out infinite}
+.ballword.drawing .swirl{opacity:1;animation:spin .8s linear infinite}
+.ballword.drawing .inner span{filter:blur(.8px);opacity:.8}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes tumble{0%{transform:translateY(0) rotate(-4deg)}25%{transform:translateY(-3%) rotate(2deg)}50%{transform:translateY(0) rotate(4deg)}75%{transform:translateY(-1.8%) rotate(-2deg)}100%{transform:translateY(0) rotate(-4deg)}}
+@keyframes glow{50%{filter:drop-shadow(0 0 min(5vw,60px) rgba(252,184,21,.85))}}
+.drawnlbl.busy::after{content:"";animation:dots 1.2s steps(1) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
 .ballword.idle .inner{color:var(--muted)}
 .ballword.idle .inner span{font-size:clamp(18px,2.2vw,30px);width:78%}
 .ballword::after{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;background:radial-gradient(circle at 31% 25%,rgba(255,255,255,.55) 0,rgba(255,255,255,0) 33%)}
@@ -156,7 +170,7 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
       <button class="primary nextbtn" id="nextBtn" type="button">Draw first word</button></div>
     <div class="wordpanel">
       <div class="drawnlbl" id="drawnLbl">Ready</div>
-      <div class="ballword idle" id="ballWord"><div class="inner"><span id="wordText">Press the button to draw the first word</span></div></div>
+      <div class="ballword idle" id="ballWord"><div class="swirl"></div><div class="inner"><span id="wordText">Press the button to draw the first word</span></div></div>
     </div>
   </div>
 </main>
@@ -317,15 +331,35 @@ let spinning = false;
 const FAST = new URLSearchParams(location.search).has("fast");   // short spins, used by test/e2e.cjs
 function doDraw() { if (spinning) return; $("nextBtn").disabled = true; net.send({ t: "draw" }); }
 
+// Words from the list flicker through the ball, quick at first and slowing to a stop as the cage settles.
+let tickTimer = 0;
+function startTicker(total) {
+  const pool = state.words.length ? state.words : ["…"], t0 = performance.now(), txt = $("wordText"), inner = txt.parentElement;
+  let n = 0, prev = "";
+  (function tick() {
+    const p = Math.min(1, (performance.now() - t0) / total);
+    let w; do { w = pool[Math.floor(Math.random() * pool.length)]; } while (pool.length > 1 && w === prev);
+    prev = w;
+    inner.style.borderColor = BALL_COLORS[n++ % BALL_COLORS.length];
+    fitWord(txt, w);
+    tickTimer = setTimeout(tick, 50 + Math.pow(p, 3) * 430);
+  })();
+}
+function stopTicker() { clearTimeout(tickTimer); $("wordText").parentElement.style.borderColor = ""; }
+
 function spinTo(word) {
   spinning = true;
-  $("nextBtn").disabled = true; $("drawnLbl").textContent = "Drawing…";
-  const ball = $("ballWord"); ball.className = "ballword idle"; shownWord = ""; $("wordText").style.fontSize = ""; $("wordText").style.width = ""; $("wordText").textContent = "…";
+  const total = FAST ? 700 : 4200;
+  $("nextBtn").disabled = true; $("drawnLbl").textContent = "Drawing"; $("drawnLbl").classList.add("busy");
+  const ball = $("ballWord"); ball.className = "ballword drawing"; shownWord = ""; $("wordText").style.width = "";
+  startTicker(total);
   Sound.startSpin();
-  cage.spin(FAST ? 700 : 4200, () => {
+  cage.spin(total, () => {
     Sound.landed();
+    stopTicker();
     net.send({ t: "reveal" });
     ball.className = "ballword land"; fitWord($("wordText"), word);
+    $("drawnLbl").classList.remove("busy");
     $("drawnLbl").textContent = `Word ${state.called.length + 1}`;
     $("nextBtn").textContent = "Next word"; $("nextBtn").disabled = false;
     spinning = false;
