@@ -18,7 +18,9 @@ const daysIn = (y, m) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
 
 // "Robinson-27225" in any case, with spaces or underscores treated alike.
 export const idKey = id => String(id).trim().toLowerCase().replace(/\s+/g, "_");
-const ID_RE = /^[^\s\[\]|{}<>=!]+(?:[ _][^\s\[\]|{}<>=!]+)*-[1-9]\d*$/;
+// A WikiTree ID: a name containing at least one letter, then -digits ("Zurcher-160", "De_La_Cruz-9"). The letter rule
+// keeps a date range like "2-5" from being read as an ID.
+const ID_RE = /^(?=[^-]*\p{L})[^\s\[\]|{}<>=!]+-[1-9]\d*$/u;
 
 // The last day of an event from its heading, as a UTC Date, or null if there is no date.
 // Understands "2-5 October 2026", "30 Nov - 3 Dec 2025", "October 2-5, 2026", "24 April 2026",
@@ -57,6 +59,46 @@ export function looksLikeHtml(source) {
   return /<\s*(!doctype|html|head|body)\b/i.test(s.slice(0, 4000)) || /<\s*(table|h[1-6])\b/i.test(s);
 }
 
+// What a string is: "html" (a rendered page), "wikitext" (the page's markup) or "text" (what you
+// get from selecting a rendered page in a browser and copying it).
+export function detectKind(source) {
+  const s = String(source);
+  if (looksLikeHtml(s)) return "html";
+  if (/^\s*(\{\||\|-|={2,6}[^=\n]+={2,6}\s*$)/m.test(s)) return "wikitext";
+  return "text";
+}
+
+// Text copied from the rendered page: headings are lines of their own, table rows are tab-separated
+// (or space-separated). Only lines that are clearly a row or an event heading are kept, so stray
+// sentences and the table's header row can't disturb which event a row belongs to.
+export function plainTextToWikitext(text) {
+  const out = [];
+  const clean = c => c.replace(/^\[\[([^\]|]+)(?:\|[^\]]*)?\]\]$/, "$1").trim();
+  for (const raw of String(text).split(/\r?\n/)) {
+    const t = raw.trim();
+    if (!t) continue;
+    let cells = t.split(/\t+| {2,}/).map(c => c.trim()).filter(Boolean);
+    if (!cells.slice(0, 2).some(c => ID_RE.test(clean(c)))) {
+      const parts = t.split(/\s+/);                                // "Zurcher-160 Randi Zurcher Source-a-Thon"
+      cells = ID_RE.test(clean(parts[0])) ? [parts[0], parts.slice(1).join(" ")] : [];
+    }
+    if (cells.length && cells.slice(0, 2).some(c => ID_RE.test(clean(c)))) { out.push("|-", "|" + cells.join("||")); continue; }
+    if (/^(current|previous)\b/i.test(t) || parseEventEnd(t)) out.push("=== " + t + " ===");
+  }
+  return out.join("\n");
+}
+
+// Every string inside a JSON value, one per line (the WikiTree API wraps the page text in JSON).
+export function stringsFromJson(value) {
+  const out = [];
+  (function walk(v) {
+    if (typeof v === "string") out.push(v);
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  })(value);
+  return out.join("\n");
+}
+
 // The rendered page as wikitext-shaped lines, so one parser handles both.
 export function htmlToWikitext(html) {
   const decode = s => s.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'")
@@ -82,7 +124,8 @@ export function htmlToWikitext(html) {
 //   found     how many distinct WikiTree IDs the page listed in total
 //   warnings  things the host should know (a heading whose date could not be read, ...)
 export function parsePrizeWinners(source, now = new Date()) {
-  const text = looksLikeHtml(source) ? htmlToWikitext(source) : String(source);
+  const kind = detectKind(source);
+  const text = kind === "html" ? htmlToWikitext(source) : kind === "text" ? plainTextToWikitext(source) : String(source);
   const start = windowStart(now), ids = {}, all = new Set(), warnings = [], seenWarn = new Set();
   let heading = "", section = null, sections = 0;
 

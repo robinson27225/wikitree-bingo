@@ -36,6 +36,11 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
 .plcount{font-size:clamp(20px,3vw,32px);color:var(--pale)}
 .prizeline{font-size:clamp(14px,1.6vw,19px);color:var(--pale);max-width:900px}
 .prizeline.warn{color:#ffb4a8}
+dialog{background:var(--hpanel);color:#f6faea;border:2px solid var(--hline);border-radius:18px;padding:22px;width:min(640px,92vw);font-family:var(--font)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{color:var(--gold);margin:0 0 6px}
+dialog textarea{min-height:140px;margin:10px 0}
+.steps{margin:8px 0 0;padding-left:22px;line-height:1.7}.steps a{color:var(--gold)}
 .prizeline button{margin-left:8px;padding:3px 12px;font-size:.9em}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:40;background:var(--orange);color:#fff;font-weight:700;font-size:clamp(16px,2.2vw,28px);border-radius:16px;padding:12px 24px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:56vw;text-align:center;animation:fade .3s both}
 .plcount b{color:var(--gold);font-size:1.5em;font-variant-numeric:tabular-nums}
@@ -190,6 +195,18 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
   <button class="primary" id="newGame" type="button">Start new game</button>
 </div>
 
+<dialog id="prizeDlg">
+  <h2>Prize Winners list</h2>
+  <p class="hint">WikiTree doesn't let other sites read its pages automatically, so copy the page from your own browser:</p>
+  <ol class="steps">
+    <li><a href="https://www.wikitree.com/wiki/Space:Prize_Winners" target="_blank" rel="noopener">Open the Prize Winners page</a> on WikiTree.</li>
+    <li>Press <b>Ctrl+A</b> (<b>Cmd+A</b> on a Mac), then <b>Ctrl+C</b> (<b>Cmd+C</b>) to copy everything.</li>
+    <li>Paste it below. Anything that isn't a winner is ignored.</li>
+  </ol>
+  <textarea id="prizeText" spellcheck="false" placeholder="Paste the page here"></textarea>
+  <div class="err" id="prizeErr" role="alert"></div>
+  <div class="btnrow"><button class="primary" id="prizeUse" type="button" style="flex:1 1 200px">Use this list</button><button class="ghost" id="prizeCancel" type="button">Cancel</button></div>
+</dialog>
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
 <button class="mute" id="muteBtn" type="button" aria-pressed="true">Sound on</button>
 <footer class="site-foot" id="foot"></footer>
@@ -285,7 +302,8 @@ function onMessage(m) {
       if (changing) { changing = false; $("cancelChange").classList.add("hidden"); $("openLobby").textContent = "Open lobby"; $("setupSub").textContent = "Upload your list of words, then open the lobby for players."; }
       renderAll(); break;
     case "players": state.players = m.n; renderCounts(); break;
-    case "prize": state.prize = m.prize; renderPrize(); break;
+    case "prize": state.prize = m.prize; renderPrize(); $("prizeUse").disabled = false; $("prizeText").value = ""; if ($("prizeDlg").open) $("prizeDlg").close(); break;
+    case "prizeError": $("prizeErr").textContent = m.reason; $("prizeUse").disabled = false; break;
     case "ineligibleClaim": showToast(m.name, m.barred); break;
     case "started": state.status = "playing"; state.called = []; state.winner = null; renderAll(); doDraw(); break;
     case "drawn": spinTo(m.word); break;
@@ -300,15 +318,24 @@ function onMessage(m) {
 const fmtDay = iso => new Date(iso + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 function renderPrize() {
   const p = state.prize, el = $("prizeLine"); el.className = "prizeline"; el.textContent = "";
-  const btn = document.createElement("button"); btn.type = "button"; btn.className = "ghost"; btn.textContent = "Re-check";
-  btn.onclick = () => { el.textContent = "Checking the Prize Winners page…"; net.send({ t: "recheck" }); };
-  if (!p) return;
-  if (!p.ok) { el.classList.add("warn"); el.textContent = "Couldn't read the WikiTree Prize Winners page, so prize eligibility is NOT being checked."; el.append(btn); return; }
-  let msg = `Prize Winners page checked: ${p.count} WikiTree ID${p.count === 1 ? "" : "s"} can't win (won in the last 6 months).`;
-  if (p.stale) msg += " (Using an earlier copy of the page.)";
-  if (p.warnings && p.warnings.length) { el.classList.add("warn"); msg += ` ${p.warnings.length} section${p.warnings.length === 1 ? "" : "s"} skipped: ${p.warnings[0]}.`; }
-  el.textContent = msg; el.append(btn);
+  const btn = document.createElement("button"); btn.type = "button"; btn.className = "ghost";
+  btn.onclick = () => { $("prizeErr").textContent = ""; $("prizeDlg").showModal(); $("prizeText").focus(); };
+  if (!p || !p.ok) {
+    el.classList.add("warn");
+    el.textContent = "Prize eligibility isn't being checked: recent winners could win again.";
+    btn.textContent = "Add the Prize Winners list"; el.append(btn); return;
+  }
+  let msg = `Prize Winners list loaded: ${p.count} WikiTree ID${p.count === 1 ? "" : "s"} can't win (won in the last 6 months).`;
+  if (p.warnings && p.warnings.length) { el.classList.add("warn"); msg += ` ${p.warnings.length} heading${p.warnings.length === 1 ? "" : "s"} skipped: ${p.warnings[0]}.`; }
+  el.textContent = msg; btn.textContent = "Update"; el.append(btn);
 }
+$("prizeUse").onclick = () => {
+  const text = $("prizeText").value;
+  if (!text.trim()) { $("prizeErr").textContent = "Paste the page text first."; return; }
+  $("prizeErr").textContent = ""; $("prizeUse").disabled = true;
+  net.send({ t: "prizeText", text });
+};
+$("prizeCancel").onclick = () => $("prizeDlg").close();
 let toastTimer = 0;
 function showToast(name, b) {
   const when = b.reason === "session" ? "won earlier in this session" : b.date === "current" ? "already won at this event" : "won a prize on " + fmtDay(b.date);

@@ -1,11 +1,8 @@
 // End-to-end check: one host and three players against a local Worker and static server.
-//   npm run dev:worker:test (port 8787)   npm run serve   (port 8000)      node test/e2e.cjs
-// The test Worker reads a generated Prize Winners page (test/fixtures/prize-winners.generated.wiki)
-// instead of WikiTree, where Smith-1 won a prize recently and so may not win.
+//   npm run dev:worker   (port 8787)      npm run serve   (port 8000)      node test/e2e.cjs
+// The host pastes a Prize Winners page through the real dialog; Smith-1 won recently so may not win.
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
 
 const SITE = process.env.SITE || "http://127.0.0.1:8000";
 const WORKER = process.env.WORKER || "http://127.0.0.1:8787";
@@ -18,27 +15,14 @@ const norm = s => s.trim().toLowerCase();
 
 const ago = days => new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
 const dmy = iso => { const d = new Date(iso + "T12:00:00Z"); return `${d.getUTCDate()} ${d.toLocaleString("en-GB", { month: "long", timeZone: "UTC" })} ${d.getUTCFullYear()}`; };
-fs.writeFileSync(path.join(__dirname, "fixtures", "prize-winners.generated.wiki"), `=== Current Event Winners ===
-{| class="wikitable"
-!WikiTree ID!!First!!Last!!Event
-|-
-|Hartley-99||Ann||Hartley||Now
-|-
-|}
-=== Previous Event Winners ===
-==== ${dmy(ago(10))} ====
-{| class="wikitable"
-|-
-|Smith-1||Sam||Smith||Recent event
-|-
-|}
-==== ${dmy(ago(300))} ====
-{| class="wikitable"
-|-
-|Robinson-27225||Rob||Robinson||Long ago
-|-
-|}
-`);
+// What selecting the rendered Prize Winners page and copying it gives (tab-separated table rows).
+// Smith-1 won a prize 10 days ago, so Smith-1 may not win; Robinson-27225 won 300 days ago, so may.
+const prizePage = [
+  "Prize Winners", "Participants may not win more than once in six months.",
+  "Current Event Winners", "WikiTree ID\tFirst\tLast\tEvent", "Hartley-99\tAnn\tHartley\tNow",
+  "Previous Event Winners", dmy(ago(10)), "WikiTree ID\tFirst\tLast\tEvent", "Smith-1\tSam\tSmith\tRecent event",
+  dmy(ago(300)), "WikiTree ID\tFirst\tLast\tEvent", "Robinson-27225\tRob\tRobinson\tLong ago",
+].join("\n");
 
 (async () => {
   const browser = await chromium.launch();
@@ -55,7 +39,15 @@ fs.writeFileSync(path.join(__dirname, "fixtures", "prize-winners.generated.wiki"
   const code = (await host.textContent("#bigCode")).trim();
   assert.equal((await host.textContent("#joinUrl")).trim(), `Go to wikitree.s.gy/bingo?g=${code}`, "lobby shows the short link with the code");
   assert.match(code, /^[A-Z2-9]{4}$/);
-  assert.match(await host.textContent("#prizeLine"), /2 WikiTree IDs can't win/, "lobby reports the prize list");
+  assert.match(await host.textContent("#prizeLine"), /isn't being checked/, "without a list the host is warned");
+  await host.click("#prizeLine button");                         // the paste dialog
+  await host.fill("#prizeText", "hello, this is not the page");
+  await host.click("#prizeUse");
+  await host.waitForFunction(() => /couldn't find any WikiTree IDs/.test(document.getElementById("prizeErr").textContent));
+  await host.fill("#prizeText", prizePage);
+  await host.click("#prizeUse");
+  await host.waitForFunction(() => /2 WikiTree IDs can't win/.test(document.getElementById("prizeLine").textContent));
+  assert.ok(!(await host.$eval("#prizeDlg", d => d.open)), "the dialog closes once the list is accepted");
 
   // the landing page passes ?g= on to the join link
   const land = await host.context().newPage();

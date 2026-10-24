@@ -27,22 +27,26 @@ Short link: https://wikitree.s.gy/bingo
 3. **Pages.** Publish the repo root with GitHub Pages (Settings, Pages, branch `main`, folder `/`).
 
 ## Prize eligibility
-The Worker reads WikiTree's [Prize Winners](https://www.wikitree.com/wiki/Space:Prize_Winners) page (cached for about 10 minutes) and works out who won a prize in the last 6 months. The window is 6 calendar months back from the last day of each event on the page, and everyone in the Current Event Winners table counts.
+Anyone who won a prize in the last 6 months can play but can't win. The list comes from WikiTree's [Prize Winners](https://www.wikitree.com/wiki/Space:Prize_Winners) page. WikiTree's bot protection stops servers from reading its pages automatically, so the host pastes the page in once per game:
 
-- A player who joined with a **WikiTree ID** on that list can play but cannot win. They see a note on their card, their real BINGO is skipped with an explanation, the host screen shows a short notice, and the game carries on.
+1. In the lobby, choose **Add the Prize Winners list**.
+2. Open the Prize Winners page in your own browser, press Ctrl+A (Cmd+A on a Mac), then Ctrl+C.
+3. Paste into the box and choose **Use this list**. Anything that isn't a winner is ignored, and the lobby shows how many WikiTree IDs can't win.
+
+How it counts: the date heading above each event's table (for example "2-5 October 2026") is the event's date, and 6 calendar months are counted back from its last day. Everyone in the Current Event Winners table counts too. If a heading has a date that can't be read, those winners are not excluded and the host is told which heading was skipped.
+
+- A player who joined with a **WikiTree ID** on the list can play but cannot win. They see a note on their card, their real BINGO is skipped with an explanation, the host screen shows a short notice, and the game carries on.
 - Players who joined with just a **username** are not checked.
 - Someone who wins during a session can't win again later in that same session.
-- The host lobby shows how many IDs were excluded, with a **Re-check** button. The list is refreshed when a game starts.
-- If the page can't be read, the game still runs and the host sees a warning that eligibility is not being checked. If some event headings have dates the parser can't read, those winners are not excluded and the host sees which headings were skipped.
-- To see what the server read, open `<your-worker-url>/api/ineligible` in a browser. If it can't find a table, the reply includes a `tried` list showing what each address returned (size, type, the first 200 characters), which makes the cause easy to spot.
+- If no list is added, the game still runs, and the lobby warns that eligibility is not being checked.
+- The list lasts for the whole game room, across new rounds. Update it any time from the lobby.
 
 ## Local development and tests
 ```
 npm run dev:worker      # Worker on http://127.0.0.1:8787
-npm run dev:worker:test # the same, but reading a generated Prize Winners page (used by the e2e test)
 npm run serve           # static pages on http://127.0.0.1:8000, open them with ?worker=http://127.0.0.1:8787
 npm test                # unit tests for shared/bingo.js
-node test/e2e.cjs       # one host + three players, full game, with dev:worker:test running (needs Playwright)
+node test/e2e.cjs       # one host + three players, full game (needs Playwright)
 ```
 `host.html?fast` shortens the cage spin; the end-to-end test uses it.
 

@@ -1,12 +1,11 @@
 {
   "name": "wikitree-bingo",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "dev:worker": "wrangler dev --config worker/wrangler.toml",
-    "dev:worker:test": "wrangler dev --config worker/wrangler.toml --var PRIZE_PAGE_URL:http://127.0.0.1:8000/test/fixtures/prize-winners.generated.wiki",
     "deploy:worker": "wrangler deploy --config worker/wrangler.toml",
     "serve": "python3 -m http.server 8000"
   },

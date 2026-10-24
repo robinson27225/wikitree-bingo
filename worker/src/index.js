@@ -4,43 +4,13 @@ import {
   CARD_WORDS, FREE, MAX_WORDS, MAX_WORD_LEN, MIN_WORDS,
   checkClaim, cleanName, isWikiTreeId, makeCard, cardSignature, normWord, randInt
 } from "../../shared/bingo.js";
-import { parsePrizeWinners, looksLikeHtml, idKey } from "../../shared/prizes.js";
+import { parsePrizeWinners, idKey } from "../../shared/prizes.js";
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";   // no I, L, O, 0, 1
 const MAX_PLAYERS = 500;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 const CLAIM_COOLDOWN_MS = 2000;
-const PRIZE_TTL_MS = 10 * 60 * 1000;
-const PRIZE_PAGE = "https://www.wikitree.com/index.php?title=Space:Prize_Winners&action=raw";
-const PRIZE_PAGE_HTML = "https://www.wikitree.com/wiki/Space:Prize_Winners";
-
-// ---- who won a prize in the last 6 months (read from WikiTree's Space:Prize_Winners page) ----
-let prizeMemo = null;                                        // { at, data }
-async function fetchPage(url) {
-  const res = await fetch(url, { headers: { "User-Agent": "WikiTreeBingo/0.2 (+https://www.wikitree.com/wiki/Robinson-27225)" }, signal: AbortSignal.timeout(6000) });
-  if (!res.ok) throw new Error(`WikiTree answered ${res.status}`);
-  return res.text();
-}
-// Returns { ok, ids, warnings, found, fetchedAt, source } or { ok: false, error }. Never throws.
-async function getPrizeList(env, force = false) {
-  if (!force && prizeMemo && Date.now() - prizeMemo.at < PRIZE_TTL_MS) return prizeMemo.data;
-  const urls = env.PRIZE_PAGE_URL ? [env.PRIZE_PAGE_URL] : [PRIZE_PAGE, PRIZE_PAGE_HTML];
-  let lastError = "no data";
-  const tried = [];                                          // what each address returned, to make a failure diagnosable
-  for (const url of urls) {
-    try {
-      const text = await fetchPage(url);
-      const r = parsePrizeWinners(text, new Date());
-      tried.push({ url, bytes: text.length, kind: looksLikeHtml(text) ? "html" : "wikitext", sections: r.sections, found: r.found, start: text.replace(/\s+/g, " ").slice(0, 200) });
-      if (!r.found) { lastError = "the page had no winners table I could read"; continue; }
-      const data = { ok: true, ids: r.ids, warnings: r.warnings, found: r.found, fetchedAt: new Date().toISOString(), source: url };
-      prizeMemo = { at: Date.now(), data };
-      return data;
-    } catch (e) { lastError = String(e.message || e); tried.push({ url, error: lastError }); }
-  }
-  if (prizeMemo && prizeMemo.data.ok) return { ...prizeMemo.data, stale: true };   // better an old list than none
-  return { ok: false, error: lastError, tried, fetchedAt: new Date().toISOString() };
-}
+const MAX_PRIZE_TEXT = 400000;
 
 const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))]
   .map(b => b.toString(16).padStart(2, "0")).join("");
@@ -68,22 +38,16 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors(request) });
     if (!originAllowed(request, env)) return new Response("Origin not allowed", { status: 403 });
 
-    if (url.pathname === "/api/ineligible" && request.method === "GET") {
-      const p = await getPrizeList(env, url.searchParams.has("fresh"));
-      return json(request, p.ok ? { ...p, count: Object.keys(p.ids).length } : p, p.ok ? 200 : 502);
-    }
-
     if (url.pathname === "/api/rooms" && request.method === "POST") {
       let body = {};
       try { body = await request.json(); } catch (e) { /* empty body is fine */ }
       const words = sanitizeWords(body.words);
       if (words.length < MIN_WORDS) return json(request, { error: `Need at least ${MIN_WORDS} words` }, 400);
       const hostKey = randomHex(16), hostHash = await sha256(hostKey);
-      const prize = await getPrizeList(env);
       for (let i = 0; i < 8; i++) {
         const code = newCode();
         const stub = env.ROOMS.get(env.ROOMS.idFromName(code));
-        const res = await stub.fetch("https://room/init", { method: "POST", body: JSON.stringify({ code, hostHash, words, prize }) });
+        const res = await stub.fetch("https://room/init", { method: "POST", body: JSON.stringify({ code, hostHash, words }) });
         if (res.status === 200) return json(request, { code, hostKey });
       }
       return json(request, { error: "Could not allocate a game code, try again" }, 503);
@@ -136,8 +100,8 @@ export class BingoRoom {
     const url = new URL(request.url);
     if (url.pathname === "/init") {
       if (this.room) return new Response("exists", { status: 409 });
-      const { code, hostHash, words, prize } = await request.json();
-      this.room = { code, hostHash, words, status: "lobby", called: [], pending: null, players: {}, winner: null, gameNo: 1, prize: prize || null, sessionWinners: {} };
+      const { code, hostHash, words } = await request.json();
+      this.room = { code, hostHash, words, status: "lobby", called: [], pending: null, players: {}, winner: null, gameNo: 1, prize: null, sessionWinners: {} };
       await this.save();
       return new Response("ok");
     }
@@ -185,8 +149,8 @@ export class BingoRoom {
   // ---- prize eligibility ----
   prizeSummary() {
     const p = this.room.prize;
-    if (!p) return { ok: false, error: "not checked yet" };
-    return { ok: !!p.ok, count: p.ok ? Object.keys(p.ids).length : 0, warnings: (p.warnings || []).slice(0, 5), fetchedAt: p.fetchedAt, stale: !!p.stale, error: p.error };
+    if (!p) return { ok: false };
+    return { ok: !!p.ok, count: p.ok ? Object.keys(p.ids).length : 0, found: p.found || 0, warnings: (p.warnings || []).slice(0, 5), fetchedAt: p.fetchedAt };
   }
   // Why this player may not win right now, or null. Username players are never checked.
   barred(p) {
@@ -196,8 +160,13 @@ export class BingoRoom {
     const d = r.prize && r.prize.ok && r.prize.ids[key];
     return d ? { reason: "recent", date: d } : null;
   }
-  async refreshPrize(force = false) {
-    this.room.prize = await getPrizeList(this.env, force);
+  // The host pastes the Prize Winners page (WikiTree's bot protection stops the server reading it directly).
+  async setPrizeText(ws, text) {
+    if (typeof text !== "string" || !text.trim() || text.length > MAX_PRIZE_TEXT)
+      return this.send(ws, { t: "prizeError", reason: "That didn't look like the Prize Winners page. Select everything on the page, copy it, and paste it here." });
+    const r = parsePrizeWinners(text, new Date());
+    if (!r.found) return this.send(ws, { t: "prizeError", reason: "I couldn't find any WikiTree IDs in that text. Open the Prize Winners page on WikiTree, press Ctrl+A (Cmd+A on a Mac), copy it, and paste it here." });
+    this.room.prize = { ok: true, ids: r.ids, warnings: r.warnings, found: r.found, fetchedAt: new Date().toISOString() };
     await this.save();
     this.toHosts({ t: "prize", prize: this.prizeSummary() });
     for (const pws of this.sockets("player")) {
@@ -205,6 +174,7 @@ export class BingoRoom {
       if (p) this.send(pws, { t: "eligibility", barred: this.barred(p) });
     }
   }
+
   playerState(pid) {
     const r = this.room, p = r.players[pid];
     return {
@@ -253,10 +223,9 @@ export class BingoRoom {
         }
         break;
       }
-      case "recheck": await this.refreshPrize(true); break;
+      case "prizeText": await this.setPrizeText(ws, msg.text); break;
       case "start":
         if (r.status !== "lobby") return;
-        await this.refreshPrize();
         r.status = "playing"; r.called = []; r.pending = null; r.winner = null;
         await this.save();
         this.toAll({ t: "started", gameNo: r.gameNo });
@@ -285,7 +254,6 @@ export class BingoRoom {
         r.status = "lobby"; r.called = []; r.pending = null; r.winner = null; r.gameNo++;
         this.dealCards();
         await this.save();
-        await this.refreshPrize();
         this.toHosts(this.hostState());
         for (const pws of this.sockets("player")) {
           const a = pws.deserializeAttachment();

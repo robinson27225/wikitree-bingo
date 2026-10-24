@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { parseEventEnd, windowStart, parsePrizeWinners, htmlToWikitext, idKey } from "../shared/prizes.js";
+import { parseEventEnd, windowStart, parsePrizeWinners, htmlToWikitext, stringsFromJson, idKey } from "../shared/prizes.js";
 
 const NOW = new Date(Date.UTC(2026, 9, 24, 12));     // 24 Oct 2026
 const day = s => new Date(s + "T00:00:00Z");
@@ -104,4 +104,28 @@ test("parsePrizeWinners: a noisy rendered page (scripts, styles, nested spans, i
   const r = parsePrizeWinners(html, NOW);
   assert.deepEqual(r.ids, { "hartley-99": "current", "zurcher-160": "2026-10-05" });
   assert.equal(r.found, 3);
+});
+
+test("parsePrizeWinners: text copied from the rendered page (tabs)", () => {
+  const pasted = [
+    "Prize Winners", "Thanks for participating in our events.",
+    "Current Event Winners", "WikiTree ID\tFirst\tLast\tEvent", "Hartley-99\tAnn\tHartley\tNow",
+    "Previous Event Winners", "2-5 October 2026", "WikiTree ID\tFirst\tLast\tEvent",
+    "Zurcher-160\tRandi\tZurcher\tSource-a-Thon", "White-34498\tChip\tWhite\tSource-a-Thon",
+    "30 Nov - 3 Dec 2025", "WikiTree ID\tFirst\tLast\tEvent", "Old-1\tOlga\tOld\tWinter",
+  ].join("\n");
+  const r = parsePrizeWinners(pasted, NOW);
+  assert.deepEqual(r.ids, { "hartley-99": "current", "zurcher-160": "2026-10-05", "white-34498": "2026-10-05" });
+  assert.equal(r.found, 4);
+  assert.equal(r.warnings.length, 0);
+});
+
+test("parsePrizeWinners: copied text where the columns are separated by single spaces", () => {
+  const pasted = "Previous Event Winners\n2-5 October 2026\nZurcher-160 Randi Zurcher Source-a-Thon\nWhite-34498 Chip White Source-a-Thon\n";
+  assert.deepEqual(Object.keys(parsePrizeWinners(pasted, NOW).ids).sort(), ["white-34498", "zurcher-160"]);
+});
+
+test("stringsFromJson + parse: a wikitext page wrapped in JSON", () => {
+  const json = JSON.parse(JSON.stringify([{ page_name: "Space:Prize_Winners", bio: readFileSync(new URL("./fixtures/prize-winners.wiki", import.meta.url), "utf8") }]));
+  assert.equal(parsePrizeWinners(stringsFromJson(json), NOW).found, 9);
 });
