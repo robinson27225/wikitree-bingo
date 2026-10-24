@@ -24,9 +24,15 @@ const norm = s => s.trim().toLowerCase();
   assert.match(await host.textContent("#count"), /^24 words found/);
   await host.click("#openLobby");
   await host.waitForSelector("#lobby.active");
-  assert.match(await host.textContent("#joinUrl"), /wikitree\.s\.gy\/bingo/, "lobby shows the short link");
   const code = (await host.textContent("#bigCode")).trim();
+  assert.equal((await host.textContent("#joinUrl")).trim(), `Go to wikitree.s.gy/bingo?g=${code}`, "lobby shows the short link with the code");
   assert.match(code, /^[A-Z2-9]{4}$/);
+
+  // the landing page passes ?g= on to the join link
+  const land = await host.context().newPage();
+  await land.goto(`${SITE}/index.html?g=${code}`);
+  assert.match(await land.getAttribute("#join", "href"), new RegExp("g=" + code));
+  await land.close();
 
   // ---- players join ----
   const players = [];

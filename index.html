@@ -36,6 +36,9 @@ renderFooter(document.getElementById("foot"));
 // carry a ?worker= override (used when testing against a local server) to both pages
 const w = new URLSearchParams(location.search).get("worker");
 if (w) for (const id of ["join", "host"]) document.getElementById(id).href += "?worker=" + encodeURIComponent(w);
+// a short link that lands here with ?g=CODE still takes players straight to the join form
+const g = new URLSearchParams(location.search).get("g");
+if (g) { const j = document.getElementById("join"); j.href += (j.href.includes("?") ? "&" : "?") + "g=" + encodeURIComponent(g); }
 </script>
 </body>
 </html>

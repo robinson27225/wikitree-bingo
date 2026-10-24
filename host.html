@@ -34,7 +34,7 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
 .joinurl b{color:#fff}
 .plcount{font-size:clamp(20px,3vw,32px);color:var(--pale)}
 .plcount b{color:var(--gold);font-size:1.5em;font-variant-numeric:tabular-nums}
-.logobtn{width:min(60vw,31vh,360px);aspect-ratio:1;border-radius:50%;border:0;padding:0;background:none;cursor:pointer;
+.logobtn{width:min(60vw,26vh,360px);aspect-ratio:1;border-radius:50%;border:0;padding:0;background:none;cursor:pointer;
   filter:drop-shadow(0 0 36px rgba(252,184,21,.5)) drop-shadow(0 16px 24px rgba(0,0,0,.5));transition:transform .15s;animation:pulse 2.4s ease-in-out infinite;position:relative}
 .logobtn img{width:100%;height:100%;display:block;border-radius:50%}
 .logobtn span{position:absolute;left:0;right:0;bottom:18%;font-size:clamp(26px,5vw,44px);font-weight:700;color:var(--forest);letter-spacing:6px;text-shadow:0 2px 0 rgba(255,255,255,.5)}
@@ -223,6 +223,9 @@ $("clear").onclick = () => { $("paste").value = ""; refreshWords(); };
 let net = null, room = null;           // room = {code, hostKey}
 let state = { status: "lobby", words: [], called: [], pending: null, players: 0, winner: null };
 
+// What players are told to type or tap: the short link with the game code already on the end.
+function shortLink() { return SHORT_URL + "?g=" + room.code; }
+
 function joinUrl() {
   const u = new URL("player.html", location.href);
   u.search = ""; u.searchParams.set("g", room.code);
@@ -310,8 +313,8 @@ new ResizeObserver(() => { if (shownWord && $("ballWord").className.includes("ba
 function renderAll() {
   renderCounts();
   $("bigCode").textContent = room.code; $("stageCode").textContent = room.code;
-  $("joinUrl").innerHTML = ""; const b = document.createElement("b"); b.textContent = SHORT_URL.replace(/^https?:\/\//, "");
-  $("joinUrl").append("Go to ", b, " and enter the code");
+  $("joinUrl").innerHTML = ""; const b = document.createElement("b"); b.textContent = shortLink().replace(/^https?:\/\//, "");
+  $("joinUrl").append("Go to ", b);
   $("lobbyNote").textContent = `${state.words.length} words loaded`;
   if (state.status === "lobby") { hideWin(); show("lobby"); return; }
   show("stage");
@@ -508,7 +511,7 @@ function startConfetti() {
 }
 
 /* ================= misc ================= */
-$("copyLink").onclick = async () => { try { await navigator.clipboard.writeText(joinUrl()); $("copyLink").textContent = "Copied!"; setTimeout(() => $("copyLink").textContent = "Copy join link", 1800); } catch (e) { prompt("Copy this link", joinUrl()); } };
+$("copyLink").onclick = async () => { try { await navigator.clipboard.writeText(shortLink()); $("copyLink").textContent = "Copied!"; setTimeout(() => $("copyLink").textContent = "Copy join link", 1800); } catch (e) { prompt("Copy this link", shortLink()); } };
 function renderSound() { $("muteBtn").textContent = Sound.prefs.on ? "Sound on" : "Sound off"; $("muteBtn").setAttribute("aria-pressed", Sound.prefs.on); }
 $("muteBtn").onclick = () => { Sound.prefs.on = !Sound.prefs.on; if (Sound.prefs.on) Sound.unlock(); else Sound.stopAll(0.05); Sound.save(); renderSound(); };
 renderSound();
