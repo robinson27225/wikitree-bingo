@@ -4,11 +4,40 @@ import {
   CARD_WORDS, FREE, MAX_WORDS, MAX_WORD_LEN, MIN_WORDS,
   checkClaim, cleanName, isWikiTreeId, makeCard, cardSignature, normWord, randInt
 } from "../../shared/bingo.js";
+import { parsePrizeWinners, idKey } from "../../shared/prizes.js";
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";   // no I, L, O, 0, 1
 const MAX_PLAYERS = 500;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 const CLAIM_COOLDOWN_MS = 2000;
+const PRIZE_TTL_MS = 10 * 60 * 1000;
+const PRIZE_PAGE = "https://www.wikitree.com/index.php?title=Space:Prize_Winners&action=raw";
+const PRIZE_PAGE_HTML = "https://www.wikitree.com/wiki/Space:Prize_Winners";
+
+// ---- who won a prize in the last 6 months (read from WikiTree's Space:Prize_Winners page) ----
+let prizeMemo = null;                                        // { at, data }
+async function fetchPage(url) {
+  const res = await fetch(url, { headers: { "User-Agent": "WikiTreeBingo/0.2 (+https://www.wikitree.com/wiki/Robinson-27225)" }, signal: AbortSignal.timeout(6000) });
+  if (!res.ok) throw new Error(`WikiTree answered ${res.status}`);
+  return res.text();
+}
+// Returns { ok, ids, warnings, found, fetchedAt, source } or { ok: false, error }. Never throws.
+async function getPrizeList(env, force = false) {
+  if (!force && prizeMemo && Date.now() - prizeMemo.at < PRIZE_TTL_MS) return prizeMemo.data;
+  const urls = env.PRIZE_PAGE_URL ? [env.PRIZE_PAGE_URL] : [PRIZE_PAGE, PRIZE_PAGE_HTML];
+  let lastError = "no data";
+  for (const url of urls) {
+    try {
+      const r = parsePrizeWinners(await fetchPage(url), new Date());
+      if (!r.found) { lastError = "the page had no winners table I could read"; continue; }
+      const data = { ok: true, ids: r.ids, warnings: r.warnings, found: r.found, fetchedAt: new Date().toISOString(), source: url };
+      prizeMemo = { at: Date.now(), data };
+      return data;
+    } catch (e) { lastError = String(e.message || e); }
+  }
+  if (prizeMemo && prizeMemo.data.ok) return { ...prizeMemo.data, stale: true };   // better an old list than none
+  return { ok: false, error: lastError, fetchedAt: new Date().toISOString() };
+}
 
 const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))]
   .map(b => b.toString(16).padStart(2, "0")).join("");
@@ -36,16 +65,22 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors(request) });
     if (!originAllowed(request, env)) return new Response("Origin not allowed", { status: 403 });
 
+    if (url.pathname === "/api/ineligible" && request.method === "GET") {
+      const p = await getPrizeList(env, url.searchParams.has("fresh"));
+      return json(request, p.ok ? { ...p, count: Object.keys(p.ids).length } : p, p.ok ? 200 : 502);
+    }
+
     if (url.pathname === "/api/rooms" && request.method === "POST") {
       let body = {};
       try { body = await request.json(); } catch (e) { /* empty body is fine */ }
       const words = sanitizeWords(body.words);
       if (words.length < MIN_WORDS) return json(request, { error: `Need at least ${MIN_WORDS} words` }, 400);
       const hostKey = randomHex(16), hostHash = await sha256(hostKey);
+      const prize = await getPrizeList(env);
       for (let i = 0; i < 8; i++) {
         const code = newCode();
         const stub = env.ROOMS.get(env.ROOMS.idFromName(code));
-        const res = await stub.fetch("https://room/init", { method: "POST", body: JSON.stringify({ code, hostHash, words }) });
+        const res = await stub.fetch("https://room/init", { method: "POST", body: JSON.stringify({ code, hostHash, words, prize }) });
         if (res.status === 200) return json(request, { code, hostKey });
       }
       return json(request, { error: "Could not allocate a game code, try again" }, 503);
@@ -98,8 +133,8 @@ export class BingoRoom {
     const url = new URL(request.url);
     if (url.pathname === "/init") {
       if (this.room) return new Response("exists", { status: 409 });
-      const { code, hostHash, words } = await request.json();
-      this.room = { code, hostHash, words, status: "lobby", called: [], pending: null, players: {}, winner: null, gameNo: 1 };
+      const { code, hostHash, words, prize } = await request.json();
+      this.room = { code, hostHash, words, status: "lobby", called: [], pending: null, players: {}, winner: null, gameNo: 1, prize: prize || null, sessionWinners: {} };
       await this.save();
       return new Response("ok");
     }
@@ -140,13 +175,37 @@ export class BingoRoom {
     const r = this.room;
     return {
       t: "hostState", code: r.code, status: r.status, words: r.words, called: r.called, pending: r.pending,
-      players: this.playerCount(), winner: r.winner, gameNo: r.gameNo
+      players: this.playerCount(), winner: r.winner, gameNo: r.gameNo, prize: this.prizeSummary()
     };
+  }
+
+  // ---- prize eligibility ----
+  prizeSummary() {
+    const p = this.room.prize;
+    if (!p) return { ok: false, error: "not checked yet" };
+    return { ok: !!p.ok, count: p.ok ? Object.keys(p.ids).length : 0, warnings: (p.warnings || []).slice(0, 5), fetchedAt: p.fetchedAt, stale: !!p.stale, error: p.error };
+  }
+  // Why this player may not win right now, or null. Username players are never checked.
+  barred(p) {
+    if (p.kind !== "id") return null;
+    const key = idKey(p.name), r = this.room;
+    if (r.sessionWinners && r.sessionWinners[key]) return { reason: "session", date: r.sessionWinners[key] };
+    const d = r.prize && r.prize.ok && r.prize.ids[key];
+    return d ? { reason: "recent", date: d } : null;
+  }
+  async refreshPrize(force = false) {
+    this.room.prize = await getPrizeList(this.env, force);
+    await this.save();
+    this.toHosts({ t: "prize", prize: this.prizeSummary() });
+    for (const pws of this.sockets("player")) {
+      const a = pws.deserializeAttachment(), p = a && a.pid && this.room.players[a.pid];
+      if (p) this.send(pws, { t: "eligibility", barred: this.barred(p) });
+    }
   }
   playerState(pid) {
     const r = this.room, p = r.players[pid];
     return {
-      t: "welcome", pid, name: p.name, kind: p.kind, card: p.card, daubed: p.daubed, status: r.status,
+      t: "welcome", pid, name: p.name, kind: p.kind, card: p.card, daubed: p.daubed, status: r.status, barred: this.barred(p),
       called: r.called, winner: r.winner, gameNo: r.gameNo
     };
   }
@@ -191,8 +250,10 @@ export class BingoRoom {
         }
         break;
       }
+      case "recheck": await this.refreshPrize(true); break;
       case "start":
         if (r.status !== "lobby") return;
+        await this.refreshPrize();
         r.status = "playing"; r.called = []; r.pending = null; r.winner = null;
         await this.save();
         this.toAll({ t: "started", gameNo: r.gameNo });
@@ -221,6 +282,7 @@ export class BingoRoom {
         r.status = "lobby"; r.called = []; r.pending = null; r.winner = null; r.gameNo++;
         this.dealCards();
         await this.save();
+        await this.refreshPrize();
         this.toHosts(this.hostState());
         for (const pws of this.sockets("player")) {
           const a = pws.deserializeAttachment();
@@ -266,7 +328,14 @@ export class BingoRoom {
       p.daubed = clean(msg.daubed);
       const line = checkClaim(p.card, new Set(r.called.map(normWord)), p.daubed);
       if (!line) { await this.save(); return this.send(ws, { t: "claimResult", ok: false, reason: "notyet" }); }
+      const bar = this.barred(p);
+      if (bar) {                                              // a real line, but they may not win: the game carries on
+        this.send(ws, { t: "claimResult", ok: false, reason: "ineligible", barred: bar });
+        this.toHosts({ t: "ineligibleClaim", name: p.name, barred: bar });
+        return;
+      }
       r.status = "won";
+      if (p.kind === "id") { r.sessionWinners = r.sessionWinners || {}; r.sessionWinners[idKey(p.name)] = new Date().toISOString().slice(0, 10); }
       r.winner = { pid, name: p.name, kind: p.kind, line, word: r.called[r.called.length - 1] || "" };
       await this.save();
       this.toAll({ t: "winner", winner: { name: p.name, kind: p.kind, line, word: r.winner.word, pid } });

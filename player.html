@@ -53,6 +53,7 @@ body.view-phone .cardwrap{max-width:400px}
 .banner.win{background:var(--gold);color:var(--forest);font-size:1.8em}
 .banner.lose{background:var(--pale);color:var(--forest)}
 .banner.warn{background:#fde8d4;color:#8a3d05}
+.elig{background:#fff3d6;border:2px solid var(--gold);color:#6b4a00;border-radius:14px;padding:10px 14px;margin:10px 0 4px;text-align:center;font-weight:700;font-size:.95em}
 .conn{position:fixed;top:0;left:0;right:0;background:var(--orange);color:#fff;text-align:center;font-weight:700;padding:4px;z-index:20}
 </style>
 </head>
@@ -94,6 +95,7 @@ body.view-phone .cardwrap{max-width:400px}
       </div>
     </div>
     <div class="cardwrap">
+      <div class="elig hidden" id="eligNote" role="status"></div>
       <div class="bingo-head" aria-label="BINGO"><span>B</span><span>I</span><span>N</span><span>G</span><span>O</span></div>
       <div class="card"><div class="grid" id="grid"></div></div>
       <div class="status" id="status"></div>
@@ -211,8 +213,22 @@ function renderStatus() {
   }
 }
 
+// Why this player can't win right now (the server decides; this only explains it).
+let barred = null;
+const fmtDay = iso => new Date(iso + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+function barredText(b) {
+  if (!b) return "";
+  if (b.reason === "session") return "You already won earlier in this session, so you can play for fun, but can't win again.";
+  if (b.date === "current") return "You already won a prize at this event, so you can play for fun, but can't win this round.";
+  return `You won a prize on ${fmtDay(b.date)}, so you can play for fun, but can't win this round.`;
+}
+function renderElig() {
+  const el = $("eligNote");
+  el.textContent = barredText(barred); el.classList.toggle("hidden", !barred);
+}
+
 function applyWelcome(m) {
-  joined = true;
+  joined = true; barred = m.barred || null; renderElig();
   card = m.card; daubed = new Set(m.daubed || []); called = new Set((m.called || []).map(normWord));
   lastWord = (m.called || []).slice(-1)[0] || ""; status = m.status; winner = m.winner; gameNo = m.gameNo;
   $("join").classList.add("hidden"); $("game").classList.remove("hidden");
@@ -221,10 +237,10 @@ function applyWelcome(m) {
   renderGrid(); renderStatus();
 }
 
-function flash(kindClass, text) {
+function flash(kindClass, text, ms = 3500) {
   const ban = $("banner"); ban.innerHTML = "";
   const d = document.createElement("div"); d.className = "banner " + kindClass; d.textContent = text; ban.appendChild(d);
-  setTimeout(() => { if (status === "playing") ban.innerHTML = ""; }, 3500);
+  setTimeout(() => { if (status === "playing") ban.innerHTML = ""; }, ms);
 }
 
 function onMessage(m) {
@@ -233,7 +249,9 @@ function onMessage(m) {
     case "started": status = "playing"; called = new Set(); lastWord = ""; renderStatus(); break;
     case "called": called.add(normWord(m.word)); lastWord = m.word; renderStatus(); break;
     case "winner": status = "won"; winner = m.winner; renderStatus(); break;
+    case "eligibility": barred = m.barred || null; renderElig(); break;
     case "claimResult":
+      if (!m.ok && m.reason === "ineligible") { barred = m.barred; renderElig(); flash("warn", "You have a line, but you can't win this round.", 6000); break; }
       if (!m.ok) flash("warn", m.reason === "wait" ? "One moment, then try again" : m.reason === "over" ? "This round is already over" : "Not yet. Keep daubing!");
       break;
     case "error":

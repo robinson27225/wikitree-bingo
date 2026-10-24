@@ -26,12 +26,23 @@ Short link: https://wikitree.s.gy/bingo
 2. **Point the pages at it.** The deployed Worker URL is the default in `shared/config.js` (`WORKER_URL`); change it there if you redeploy under another name. Any page also accepts `?worker=https://…` to override it.
 3. **Pages.** Publish the repo root with GitHub Pages (Settings, Pages, branch `main`, folder `/`).
 
+## Prize eligibility
+The Worker reads WikiTree's [Prize Winners](https://www.wikitree.com/wiki/Space:Prize_Winners) page (cached for about 10 minutes) and works out who won a prize in the last 6 months. The window is 6 calendar months back from the last day of each event on the page, and everyone in the Current Event Winners table counts.
+
+- A player who joined with a **WikiTree ID** on that list can play but cannot win. They see a note on their card, their real BINGO is skipped with an explanation, the host screen shows a short notice, and the game carries on.
+- Players who joined with just a **username** are not checked.
+- Someone who wins during a session can't win again later in that same session.
+- The host lobby shows how many IDs were excluded, with a **Re-check** button. The list is refreshed when a game starts.
+- If the page can't be read, the game still runs and the host sees a warning that eligibility is not being checked. If some event headings have dates the parser can't read, those winners are not excluded and the host sees which headings were skipped.
+- To see what the server read, open `<your-worker-url>/api/ineligible` in a browser.
+
 ## Local development and tests
 ```
 npm run dev:worker      # Worker on http://127.0.0.1:8787
+npm run dev:worker:test # the same, but reading a generated Prize Winners page (used by the e2e test)
 npm run serve           # static pages on http://127.0.0.1:8000, open them with ?worker=http://127.0.0.1:8787
 npm test                # unit tests for shared/bingo.js
-node test/e2e.cjs       # one host + three players, full game (needs Playwright)
+node test/e2e.cjs       # one host + three players, full game, with dev:worker:test running (needs Playwright)
 ```
 `host.html?fast` shortens the cage spin; the end-to-end test uses it.
 

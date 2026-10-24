@@ -1,7 +1,11 @@
 // End-to-end check: one host and three players against a local Worker and static server.
-//   npm run dev:worker   (port 8787)      npm run serve   (port 8000)      node test/e2e.cjs
+//   npm run dev:worker:test (port 8787)   npm run serve   (port 8000)      node test/e2e.cjs
+// The test Worker reads a generated Prize Winners page (test/fixtures/prize-winners.generated.wiki)
+// instead of WikiTree, where Smith-1 won a prize recently and so may not win.
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const SITE = process.env.SITE || "http://127.0.0.1:8000";
 const WORKER = process.env.WORKER || "http://127.0.0.1:8787";
@@ -11,6 +15,30 @@ const words24 = Array.from({ length: 24 }, (_, i) => "Word " + String.fromCharCo
 
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` }); };
 const norm = s => s.trim().toLowerCase();
+
+const ago = days => new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+const dmy = iso => { const d = new Date(iso + "T12:00:00Z"); return `${d.getUTCDate()} ${d.toLocaleString("en-GB", { month: "long", timeZone: "UTC" })} ${d.getUTCFullYear()}`; };
+fs.writeFileSync(path.join(__dirname, "fixtures", "prize-winners.generated.wiki"), `=== Current Event Winners ===
+{| class="wikitable"
+!WikiTree ID!!First!!Last!!Event
+|-
+|Hartley-99||Ann||Hartley||Now
+|-
+|}
+=== Previous Event Winners ===
+==== ${dmy(ago(10))} ====
+{| class="wikitable"
+|-
+|Smith-1||Sam||Smith||Recent event
+|-
+|}
+==== ${dmy(ago(300))} ====
+{| class="wikitable"
+|-
+|Robinson-27225||Rob||Robinson||Long ago
+|-
+|}
+`);
 
 (async () => {
   const browser = await chromium.launch();
@@ -27,6 +55,7 @@ const norm = s => s.trim().toLowerCase();
   const code = (await host.textContent("#bigCode")).trim();
   assert.equal((await host.textContent("#joinUrl")).trim(), `Go to wikitree.s.gy/bingo?g=${code}`, "lobby shows the short link with the code");
   assert.match(code, /^[A-Z2-9]{4}$/);
+  assert.match(await host.textContent("#prizeLine"), /2 WikiTree IDs can't win/, "lobby reports the prize list");
 
   // the landing page passes ?g= on to the join link
   const land = await host.context().newPage();
@@ -49,6 +78,8 @@ const norm = s => s.trim().toLowerCase();
     players.push({ p, who });
   }
   await host.waitForFunction(() => document.getElementById("lobbyCount").textContent === "3");
+  assert.match(await players[2].p.textContent("#eligNote"), /won a prize on/, "a recent winner is told up front");
+  assert.ok(await players[0].p.$eval("#eligNote", e => e.classList.contains("hidden")), "an older winner is not restricted");
   await host.waitForTimeout(500);
   await shot(host, "host-lobby");
   await shot(players[0].p, "player-card");
@@ -107,7 +138,8 @@ const norm = s => s.trim().toLowerCase();
   for (let c = 0; c < 5; c++) LINES.push([0,1,2,3,4].map(r => r*5+c));
   LINES.push([0,6,12,18,24],[4,8,12,16,20]);
   let winner = null, shotWin = false;
-  for (let n = 1; n <= 24 && !winner; n++) {
+  const barredPl = players[2];                                  // Smith-1, a recent prize winner
+  for (let n = 1; n <= 24 && !(winner && barredPl.hasLine); n++) {
     if (n > 1) { await host.click("#nextBtn"); await waitCalled(n); }
     const word = norm((await host.textContent("#ribbon .chip:last-child")).replace(/^\d+/, ""));
     for (const pl of players) {
@@ -117,11 +149,21 @@ const norm = s => s.trim().toLowerCase();
       const daubed = await pl.p.$$eval("#grid .cell", cs => cs.map(c => !!c.querySelector(".daub")));
       if (i >= 0 && !daubed[i]) { await (await pl.p.$$("#grid .cell"))[i].click(); daubed[i] = true; }
       pl.daubed = daubed; pl.card = card;
-      if (!winner && LINES.some(l => l.every(k => k === 12 || daubed[k]))) winner = pl;
+      const has = LINES.some(l => l.every(k => k === 12 || daubed[k]));
+      if (pl === barredPl) barredPl.hasLine = has;
+      else if (has && !winner) winner = pl;
     }
     if (n === 6 && !shotWin) { shotWin = true; await shot(players[0].p, "player-daubed"); await shot(host, "host-stage-6"); }
   }
   assert.ok(winner, "someone should complete a line by the time all 24 words are drawn");
+
+  // the recent winner has a real line but is not allowed to win: the game carries on
+  await barredPl.p.click("#bingoBtn");
+  await barredPl.p.waitForFunction(() => /You have a line, but you can't win this round/.test(document.querySelector(".banner.warn")?.textContent || ""));
+  await host.waitForFunction(() => /Smith-1 has a line, but won a prize on/.test(document.getElementById("toast").textContent) && !document.getElementById("toast").classList.contains("hidden"));
+  assert.ok(!(await host.$eval("#win", e => e.classList.contains("show"))), "an ineligible claim must not end the game");
+  await shot(host, "host-toast");
+  await shot(barredPl.p, "player-barred");
 
   await winner.p.click("#bingoBtn");
   await host.waitForSelector("#win.show");
