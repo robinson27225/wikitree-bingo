@@ -1,7 +1,11 @@
 export const TOOL_NAME = "WikiTree Bingo";
-export const VERSION = "0.1.2";
+export const VERSION = "0.1.3";
 export const AUTHOR_URL = "https://www.wikitree.com/wiki/Robinson-27225";
 export const AUTHOR_ID = "Robinson-27225";
+
+// Short link shown to players on the host lobby. It opens the player page (or the landing
+// page); players then type the 4-letter game code.
+export const SHORT_URL = "https://wikitree.s.gy/bingo";
 
 // Base URL of the deployed Cloudflare Worker (see README). Override without editing this
 // file by opening a page with ?worker=...  e.g. ?worker=http://127.0.0.1:8787 for local dev.

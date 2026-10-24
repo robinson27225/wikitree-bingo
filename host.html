@@ -30,7 +30,7 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
 /* lobby */
 #lobby{justify-content:center;text-align:center;gap:min(14px,1.6vh)}
 .bigcode{font-size:clamp(48px,min(12vw,15vh),130px);font-weight:700;letter-spacing:.14em;color:var(--gold);line-height:1;text-shadow:0 4px 0 rgba(0,0,0,.3)}
-.joinurl{font-size:clamp(16px,2.4vw,26px);color:var(--pale);word-break:break-all}
+.joinurl{font-size:clamp(20px,3.2vw,42px);color:var(--pale);word-break:break-all}
 .joinurl b{color:#fff}
 .plcount{font-size:clamp(20px,3vw,32px);color:var(--pale)}
 .plcount b{color:var(--gold);font-size:1.5em;font-variant-numeric:tabular-nums}
@@ -188,7 +188,7 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
 <footer class="site-foot" id="foot"></footer>
 
 <script type="module">
-import { renderFooter, WORKER_URL, BALL_COLORS } from "./shared/config.js";
+import { renderFooter, WORKER_URL, BALL_COLORS, SHORT_URL } from "./shared/config.js";
 import { connect, createRoom, store } from "./shared/net.js";
 import { parseCsv, MIN_WORDS } from "./shared/bingo.js";
 import { Sound } from "./shared/sound.js";
@@ -310,7 +310,7 @@ new ResizeObserver(() => { if (shownWord && $("ballWord").className.includes("ba
 function renderAll() {
   renderCounts();
   $("bigCode").textContent = room.code; $("stageCode").textContent = room.code;
-  $("joinUrl").innerHTML = ""; const b = document.createElement("b"); b.textContent = joinUrl().replace(/^https?:\/\//, "");
+  $("joinUrl").innerHTML = ""; const b = document.createElement("b"); b.textContent = SHORT_URL.replace(/^https?:\/\//, "");
   $("joinUrl").append("Go to ", b, " and enter the code");
   $("lobbyNote").textContent = `${state.words.length} words loaded`;
   if (state.status === "lobby") { hideWin(); show("lobby"); return; }

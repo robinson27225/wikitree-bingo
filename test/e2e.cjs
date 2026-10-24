@@ -24,6 +24,7 @@ const norm = s => s.trim().toLowerCase();
   assert.match(await host.textContent("#count"), /^24 words found/);
   await host.click("#openLobby");
   await host.waitForSelector("#lobby.active");
+  assert.match(await host.textContent("#joinUrl"), /wikitree\.s\.gy\/bingo/, "lobby shows the short link");
   const code = (await host.textContent("#bigCode")).trim();
   assert.match(code, /^[A-Z2-9]{4}$/);
 
