@@ -8,6 +8,8 @@ A live bingo game for WikiTree events. The host runs a livecast screen: a spinni
 The pages are static files. A small Cloudflare Worker with a Durable Object relays the draws and checks every BINGO claim against the words actually drawn.
 
 ## Running a game
+Short link: https://wikitree.s.gy/bingo
+
 1. Make a CSV with one word or phrase per row (the first column is used, a header row is fine). You need at least 24 words. Use 40 or more so players get genuinely different cards.
 2. Open the host page, drop in the CSV, and choose **Open lobby**. Share the join link or the 4-letter code on your stream.
 3. When players have joined, press the **START** logo, then **Next word** for each draw.
