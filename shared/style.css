@@ -1,0 +1,53 @@
+@import url("https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&display=swap");
+
+:root {
+  --gold: #FCB815; --orange: #f37c26; --lime: #8FC641; --leaf: #A5D167; --pale: #E1F0B4;
+  --forest: #25422D; --butter: #FFEE99; --yellow: #FFE270; --honey: #FAD158;
+  --ink: #1d2f22; --muted: #5d7364; --line: #d6e4b5; --bg: #f6faea; --panel: #ffffff;
+  --font: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;font:18px/1.4 var(--font);color:var(--ink);background:var(--bg);min-height:100vh;overflow-x:hidden}
+h1,h2{margin:0;font-weight:700}
+button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:12px 22px;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.hidden{display:none !important}
+
+.primary{background:var(--gold);color:var(--forest);font-size:1.15em}
+.primary:hover:not(:disabled){filter:brightness(1.07)}
+.primary:disabled{opacity:.5;cursor:default}
+.ghost{background:transparent;color:var(--forest);border:2px solid var(--leaf);padding:8px 16px}
+.ghost:hover{background:var(--pale)}
+.orange{background:var(--orange);color:#fff}
+
+input[type=text]{width:100%;font:inherit;padding:12px 14px;border:2px solid var(--leaf);border-radius:12px;background:#fff;color:var(--ink)}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field label,.lbl{font-weight:700;color:var(--forest)}
+.hint{color:var(--muted);font-size:.9em;margin:0}
+.err{color:#b3261e;font-weight:700;min-height:1.4em}
+
+/* B-I-N-G-O header tiles in WikiTree colours */
+.bingo-head{display:flex;gap:clamp(4px,1vw,10px);justify-content:center}
+.bingo-head span{flex:1;max-width:120px;aspect-ratio:1.15;display:flex;align-items:center;justify-content:center;border-radius:14px;
+  font-weight:700;font-size:clamp(28px,6vw,64px);color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.18);box-shadow:0 3px 0 rgba(0,0,0,.18)}
+.bingo-head span:nth-child(1){background:var(--gold);color:var(--forest);text-shadow:none}
+.bingo-head span:nth-child(2){background:var(--orange)}
+.bingo-head span:nth-child(3){background:var(--lime)}
+.bingo-head span:nth-child(4){background:var(--leaf);color:var(--forest);text-shadow:none}
+.bingo-head span:nth-child(5){background:var(--forest)}
+
+/* footer: logo lower-left, tool name + version lower-right */
+.site-foot{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:6px 14px;pointer-events:none;z-index:5}
+.site-foot a{pointer-events:auto;text-decoration:none}
+.foot-logo img{height:clamp(46px,8vh,84px);width:auto;display:block}
+.foot-tool{font-size:13px;color:var(--muted);background:rgba(255,255,255,.85);border-radius:8px;padding:3px 8px}
+.foot-tool:hover{text-decoration:underline}
+.dark .foot-logo img{background:#fff;border-radius:10px;padding:2px 6px}
+.dark .foot-tool{background:rgba(0,0,0,.35);color:var(--pale)}
+
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.6);opacity:.2}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+@keyframes pulse{50%{transform:scale(1.03)}}
+@keyframes shake{20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001s !important;animation-iteration-count:1 !important}}

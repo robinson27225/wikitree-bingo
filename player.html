@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>WikiTree Bingo: Player</title>
+<link rel="icon" href="assets/logo-mark.png">
+<link rel="stylesheet" href="shared/style.css">
+<style>
+body{padding:14px 12px 110px}
+.wrap{max-width:760px;margin:0 auto}
+.panel{background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:20px;max-width:480px;margin:18px auto}
+.panel h1{color:var(--forest);font-size:1.7em;text-align:center;margin-bottom:4px}
+.panel .sub{text-align:center;color:var(--muted);margin:0 0 16px}
+.seg{display:inline-flex;border:2px solid var(--leaf);border-radius:999px;overflow:hidden;background:#fff}
+.seg button{border-radius:0;background:transparent;color:var(--muted);padding:6px 14px;font-weight:700}
+.seg button[aria-pressed="true"]{background:var(--forest);color:#fff}
+.joinmode{display:flex;justify-content:center;margin-bottom:14px}
+.code{text-transform:uppercase;letter-spacing:6px;text-align:center;font-weight:700;font-size:1.4em}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.who{font-weight:700;color:var(--forest)}
+.who small{font-weight:400;color:var(--muted)}
+.status{text-align:center;min-height:1.5em;color:var(--muted);margin:8px 0}
+.status b{color:var(--forest)}
+
+/* card width follows the Desktop / Tablet / Phone choice */
+body.view-desktop .cardwrap{max-width:min(720px,max(420px,calc(100vh - 330px)))}
+body.view-tablet .cardwrap{max-width:560px}
+body.view-phone .cardwrap{max-width:400px}
+.cardwrap{margin:0 auto}
+.card{container-type:inline-size;margin-top:10px}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(3px,1cqw,8px);margin-top:clamp(4px,1.2cqw,10px)}
+.cell{position:relative;aspect-ratio:1;background:#fff;border:2px solid var(--leaf);border-radius:clamp(8px,2cqw,14px);padding:2px;
+  display:flex;align-items:center;justify-content:center;text-align:center;color:var(--ink);font:700 clamp(10px,3.3cqw,21px)/1.1 var(--font);
+  overflow:hidden;overflow-wrap:anywhere;hyphens:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.cell:active{background:var(--pale)}
+.cell.shake{animation:shake .35s}
+.cell img{width:86%;height:86%;object-fit:contain;position:relative;z-index:1}
+.cell.free{background:var(--butter);border-color:var(--gold);cursor:default}
+.cell span{position:relative;z-index:1}
+/* a marker daub, like a bingo dauber on paper */
+.daub{position:absolute;inset:8%;border-radius:46% 54% 50% 50% / 52% 46% 54% 48%;pointer-events:none;z-index:2;
+  background:radial-gradient(circle at 38% 34%,rgba(243,124,38,.95) 0,rgba(243,124,38,.78) 55%,rgba(214,92,12,.7) 100%);
+  mix-blend-mode:multiply;animation:pop .28s ease-out both;box-shadow:0 0 0 2px rgba(243,124,38,.25)}
+
+.claimrow{display:flex;justify-content:center;margin-top:16px}
+.bingobtn{background:var(--orange);color:#fff;font-size:1.6em;letter-spacing:4px;padding:14px 40px;box-shadow:0 5px 0 #b95a14}
+.bingobtn:active:not(:disabled){transform:translateY(3px);box-shadow:0 2px 0 #b95a14}
+.bingobtn:disabled{background:#cfd9bd;box-shadow:none;color:#fff}
+.banner{border-radius:16px;padding:14px;text-align:center;font-weight:700;font-size:1.3em;margin:10px 0;animation:fade .4s both}
+.banner.win{background:var(--gold);color:var(--forest);font-size:1.8em}
+.banner.lose{background:var(--pale);color:var(--forest)}
+.banner.warn{background:#fde8d4;color:#8a3d05}
+.conn{position:fixed;top:0;left:0;right:0;background:var(--orange);color:#fff;text-align:center;font-weight:700;padding:4px;z-index:20}
+</style>
+</head>
+<body class="view-phone">
+<div class="conn hidden" id="conn">Reconnecting…</div>
+
+<main class="wrap">
+  <!-- JOIN -->
+  <section class="panel" id="join">
+    <h1>Join the game</h1>
+    <p class="sub">WikiTree Bingo</p>
+    <div class="field" id="codeField">
+      <label for="code">Game code</label>
+      <input type="text" id="code" class="code" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD">
+    </div>
+    <div class="joinmode">
+      <div class="seg" role="group" aria-label="How to identify yourself">
+        <button type="button" id="modeId" aria-pressed="true">WikiTree ID</button>
+        <button type="button" id="modeName" aria-pressed="false">Just a username</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="who" id="whoLbl">Your WikiTree ID</label>
+      <input type="text" id="who" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Robinson-27225" maxlength="40">
+      <p class="hint" id="whoHint">Your ID is shown on the livecast if you win.</p>
+    </div>
+    <div class="err" id="joinErr" role="alert"></div>
+    <button class="primary" id="joinBtn" type="button" style="width:100%">Join</button>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="hidden">
+    <div class="topbar">
+      <div class="who" id="whoAmI"></div>
+      <div class="seg" role="group" aria-label="Screen size">
+        <button type="button" data-view="desktop" aria-pressed="false">Desktop</button>
+        <button type="button" data-view="tablet" aria-pressed="false">Tablet</button>
+        <button type="button" data-view="phone" aria-pressed="true">Phone</button>
+      </div>
+    </div>
+    <div class="cardwrap">
+      <div class="bingo-head" aria-label="BINGO"><span>B</span><span>I</span><span>N</span><span>G</span><span>O</span></div>
+      <div class="card"><div class="grid" id="grid"></div></div>
+      <div class="status" id="status"></div>
+      <div id="banner"></div>
+      <div class="claimrow"><button class="bingobtn" id="bingoBtn" type="button" disabled>BINGO!</button></div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot" id="foot"></footer>
+
+<script type="module">
+import { renderFooter } from "./shared/config.js";
+import { connect, store } from "./shared/net.js";
+import { FREE, isWikiTreeId, normWord, cleanName } from "./shared/bingo.js";
+
+renderFooter(document.getElementById("foot"));
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+
+/* ---- view toggle (desktop / tablet / phone) ---- */
+function setView(v) {
+  document.body.className = "view-" + v;
+  document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === v));
+  store.set("view", v);
+}
+document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+setView(store.get("view") || (innerWidth >= 1000 ? "desktop" : innerWidth >= 640 ? "tablet" : "phone"));
+
+/* ---- identity ---- */
+let pid = store.get("pid");
+if (!pid) { pid = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()); store.set("pid", pid); }
+let kind = (store.get("kind") === "name") ? "name" : "id";
+function renderMode() {
+  $("modeId").setAttribute("aria-pressed", kind === "id");
+  $("modeName").setAttribute("aria-pressed", kind === "name");
+  $("whoLbl").textContent = kind === "id" ? "Your WikiTree ID" : "Your username";
+  $("who").placeholder = kind === "id" ? "Robinson-27225" : "Pick a name";
+  $("whoHint").textContent = kind === "id" ? "Your ID is shown on the livecast if you win." : "Your username is shown on the livecast if you win.";
+}
+$("modeId").onclick = () => { kind = "id"; renderMode(); };
+$("modeName").onclick = () => { kind = "name"; renderMode(); };
+renderMode();
+$("who").value = store.get("who") || "";
+const gParam = (params.get("g") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
+$("code").value = gParam || "";
+if (gParam) $("codeField").classList.add("hidden");
+
+/* ---- game state ---- */
+let net = null, joined = false, wantJoin = null;
+let card = [], daubed = new Set(), called = new Set(), status = "lobby", winner = null, lastWord = "", gameNo = 0;
+
+function say(el, text) { $(el).textContent = text; }
+
+function renderGrid() {
+  const g = $("grid"); g.innerHTML = "";
+  card.forEach((w, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "cell"; b.dataset.i = i;
+    if (i === FREE) {
+      b.classList.add("free"); b.disabled = true; b.setAttribute("aria-label", "Free space");
+      b.innerHTML = `<img src="assets/logo-mark.png" alt="WikiTree free space">`;   // the logo is the free daub
+    } else {
+      b.innerHTML = `<span></span>`; b.firstChild.textContent = w;
+      b.setAttribute("aria-pressed", daubed.has(i));
+      if (daubed.has(i)) b.insertAdjacentHTML("beforeend", `<div class="daub"></div>`);
+      b.addEventListener("click", () => toggle(i, b));
+    }
+    g.appendChild(b);
+  });
+}
+
+function toggle(i, b) {
+  if (status === "won") return;
+  if (daubed.has(i)) {
+    daubed.delete(i); b.querySelector(".daub")?.remove();
+  } else if (called.has(normWord(card[i]))) {
+    daubed.add(i); b.insertAdjacentHTML("beforeend", `<div class="daub"></div>`);
+  } else {                                           // not drawn yet: no daub
+    b.classList.remove("shake"); void b.offsetWidth; b.classList.add("shake");
+    return;
+  }
+  b.setAttribute("aria-pressed", daubed.has(i));
+  net.send({ t: "daub", daubed: [...daubed] });
+}
+
+function renderStatus() {
+  const btn = $("bingoBtn");
+  btn.disabled = status !== "playing";
+  if (status === "lobby") say("status", "Waiting for the host to start…");
+  else if (status === "playing") $("status").innerHTML = lastWord ? `Last word: <b></b> &middot; ${called.size} drawn` : "Game on! Waiting for the first word…";
+  else say("status", "");
+  if (status === "playing" && lastWord) $("status").querySelector("b").textContent = lastWord;
+  const ban = $("banner"); ban.innerHTML = "";
+  if (status === "won" && winner) {
+    const me = winner.pid === pid;
+    const d = document.createElement("div");
+    d.className = "banner " + (me ? "win" : "lose");
+    d.textContent = me ? "BINGO! You won!" : `BINGO! ${winner.name} won this round`;
+    ban.appendChild(d);
+    const n = document.createElement("div"); n.className = "status"; n.textContent = "Waiting for the host to start a new game…";
+    ban.appendChild(n);
+  }
+}
+
+function applyWelcome(m) {
+  joined = true;
+  card = m.card; daubed = new Set(m.daubed || []); called = new Set((m.called || []).map(normWord));
+  lastWord = (m.called || []).slice(-1)[0] || ""; status = m.status; winner = m.winner; gameNo = m.gameNo;
+  $("join").classList.add("hidden"); $("game").classList.remove("hidden");
+  $("whoAmI").innerHTML = `<small>Playing as</small> <span></span>`;
+  $("whoAmI").querySelector("span").textContent = m.name;
+  renderGrid(); renderStatus();
+}
+
+function flash(kindClass, text) {
+  const ban = $("banner"); ban.innerHTML = "";
+  const d = document.createElement("div"); d.className = "banner " + kindClass; d.textContent = text; ban.appendChild(d);
+  setTimeout(() => { if (status === "playing") ban.innerHTML = ""; }, 3500);
+}
+
+function onMessage(m) {
+  switch (m.t) {
+    case "welcome": applyWelcome(m); break;
+    case "started": status = "playing"; called = new Set(); lastWord = ""; renderStatus(); break;
+    case "called": called.add(normWord(m.word)); lastWord = m.word; renderStatus(); break;
+    case "winner": status = "won"; winner = m.winner; renderStatus(); break;
+    case "claimResult":
+      if (!m.ok) flash("warn", m.reason === "wait" ? "One moment, then try again" : m.reason === "over" ? "This round is already over" : "Not yet. Keep daubing!");
+      break;
+    case "error":
+      if (!joined) { say("joinErr", m.reason); $("joinBtn").disabled = false; wantJoin = null; }
+      break;
+  }
+}
+
+function startConnection(code) {
+  if (net) net.close();
+  net = connect("/ws/" + code, {
+    onOpen() { if (wantJoin) net.send({ t: "join", pid, ...wantJoin }); },
+    onMessage,
+    onStatus(state, failures) {
+      $("conn").classList.toggle("hidden", state === "open" || !joined);
+      if (!joined && failures >= 3) {
+        say("joinErr", "Can't reach that game. Check the code and try again.");
+        $("joinBtn").disabled = false;
+        net.close();
+      }
+    }
+  });
+}
+
+$("joinBtn").addEventListener("click", () => {
+  const code = $("code").value.trim().toUpperCase();
+  const name = cleanName($("who").value);
+  say("joinErr", "");
+  if (!/^[A-Z0-9]{4}$/.test(code)) return say("joinErr", "Enter the 4-letter game code");
+  if (!name) return say("joinErr", kind === "id" ? "Enter your WikiTree ID" : "Pick a username");
+  if (kind === "id" && !isWikiTreeId(name)) return say("joinErr", "That doesn't look like a WikiTree ID, for example Robinson-27225");
+  store.set("kind", kind); store.set("who", name);
+  $("joinBtn").disabled = true;
+  wantJoin = { kind, name };
+  startConnection(code);
+});
+for (const id of ["who", "code"]) $(id).addEventListener("keydown", e => { if (e.key === "Enter") $("joinBtn").click(); });
+
+$("bingoBtn").addEventListener("click", () => net.send({ t: "claim", daubed: [...daubed] }));
+</script>
+</body>
+</html>

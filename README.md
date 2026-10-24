@@ -1,0 +1,44 @@
+# WikiTree Bingo
+
+A live bingo game for WikiTree events. The host runs a livecast screen: a spinning bingo cage draws one word at a time, and everyone plays on their own card from a phone, tablet or desktop.
+
+- **Host** (`host.html`): upload a CSV of words, open a lobby, press the START logo, then click **Next word** for each draw. Every word drawn stays across the top, the player count is always visible, and a verified BINGO takes over the screen with the winner's WikiTree ID or username and a **Start new game** button.
+- **Player** (`player.html`): join with a 4-letter code using a WikiTree ID or just a username. Each player gets a different random card, with the WikiTree logo as the free space. Tap a word that has been drawn to daub it, tap again to undo. Press **BINGO!** when you have a line.
+
+The pages are static files. A small Cloudflare Worker with a Durable Object relays the draws and checks every BINGO claim against the words actually drawn.
+
+## Running a game
+1. Make a CSV with one word or phrase per row (the first column is used, a header row is fine). You need at least 24 words. Use 40 or more so players get genuinely different cards.
+2. Open the host page, drop in the CSV, and choose **Open lobby**. Share the join link or the 4-letter code on your stream.
+3. When players have joined, press the **START** logo, then **Next word** for each draw.
+4. When someone wins, the host screen celebrates. Choose **Start new game** to deal everyone fresh cards.
+
+## Deploying
+1. **Worker.** You need a free Cloudflare account.
+   ```
+   npm install
+   npx wrangler login
+   npm run deploy:worker
+   ```
+   Edit `ALLOWED_ORIGINS` in `worker/wrangler.toml` to match the site that serves the pages (for GitHub Pages, `https://<user>.github.io`).
+2. **Point the pages at it.** Set the deployed Worker URL as the fallback in `shared/config.js` (`WORKER_URL`). Any page also accepts `?worker=https://…` to override it.
+3. **Pages.** Publish the repo root with GitHub Pages (Settings, Pages, branch `main`, folder `/`).
+
+## Local development and tests
+```
+npm run dev:worker      # Worker on http://127.0.0.1:8787
+npm run serve           # static pages on http://127.0.0.1:8000
+npm test                # unit tests for shared/bingo.js
+node test/e2e.cjs       # one host + three players, full game (needs Playwright)
+```
+`host.html?fast` shortens the cage spin; the end-to-end test uses it.
+
+## How it works
+- `shared/bingo.js` holds the pure logic used by both the browser and the Worker: CSV parsing, card dealing, and claim checking.
+- A claim wins when a row, column or diagonal is made up of the free space and words that are both **drawn** and **daubed** by that player.
+- A drawn word is only sent to players after the host's spin finishes, so nobody sees it before the stream does.
+- Cards are dealt with crypto randomness, and the Worker avoids issuing the same card twice. A refresh or dropped connection restores the same card and daubs.
+- Rooms are deleted after 24 hours of inactivity.
+
+## Credits
+Look, feel and the drum roll and applause sounds follow the WikiTree Marathon Drawing tool. Made by [Robinson-27225](https://www.wikitree.com/wiki/Robinson-27225) on WikiTree.

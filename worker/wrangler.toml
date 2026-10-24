@@ -1,0 +1,15 @@
+name = "wikitree-bingo"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Comma-separated browser origins allowed to create and join games (localhost is always allowed).
+ALLOWED_ORIGINS = "https://robinson27225.github.io"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "BingoRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["BingoRoom"]
