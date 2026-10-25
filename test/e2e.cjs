@@ -108,7 +108,8 @@ const prizePage = [
 
   // tapping an undrawn word does not daub; tapping a drawn one does, and again removes it
   const p0 = players[0].p;
-  await p0.waitForFunction(() => document.getElementById("status").textContent.includes("Last word"));
+  await p0.waitForFunction(() => document.getElementById("status").textContent.includes("Current word"));
+  assert.ok(await p0.$eval("#earlier", e => e.classList.contains("hidden")), "no earlier words until a second word is drawn");
   const idxOf = async (p, word) => (await cardOf(p)).findIndex(w => norm(w) === word);
   let cell = await p0.$$("#grid .cell");
   const firstWord = called[0];
@@ -121,6 +122,18 @@ const prizePage = [
   await cell[drawnIdx].click();
   assert.equal(await p0.$$eval("#grid .daub", d => d.length), 1, "second tap un-daubs");
 
+  // the player's small-print list holds the earlier words, in order, without the current one
+  const ribbon = async () => (await host.$$eval("#ribbon .chip", cs => cs.map(c => c.textContent.replace(/^\d+/, "").trim())));
+  {
+    await host.click("#nextBtn"); await waitCalled(2);
+    const all = await ribbon();
+    await p0.waitForFunction(w => document.getElementById("status").textContent.includes(w), all[1]);
+    assert.deepEqual(await p0.$$eval("#earlier span", s => s.map(x => x.textContent)), all.slice(0, -1));
+    assert.match(await p0.textContent("#status"), /^Current word: /);
+    assert.ok(!/Last word/.test(await p0.textContent("#status")));
+    await shot(p0, "player-earlier");
+  }
+
   // a premature claim is refused
   await p0.click("#bingoBtn");
   await p0.waitForSelector(".banner.warn");
@@ -132,10 +145,10 @@ const prizePage = [
   let winner = null, shotWin = false;
   const barredPl = players[2];                                  // Smith-1, a recent prize winner
   for (let n = 1; n <= 24 && !(winner && barredPl.hasLine); n++) {
-    if (n > 1) { await host.click("#nextBtn"); await waitCalled(n); }
-    const word = norm((await host.textContent("#ribbon .chip:last-child")).replace(/^\d+/, ""));
+    if ((await ribbon()).length < n) { await host.click("#nextBtn"); await waitCalled(n); }
+    const word = norm((await ribbon())[n - 1]);
     for (const pl of players) {
-      await pl.p.waitForFunction(w => document.getElementById("status").textContent.toLowerCase().includes(w), word);
+      await pl.p.waitForFunction(k => +(/(\d+) drawn/.exec(document.getElementById("status").textContent) || [0, 0])[1] >= k, n);
       const card = await cardOf(pl.p);
       const i = card.findIndex(w => norm(w) === word);
       const daubed = await pl.p.$$eval("#grid .cell", cs => cs.map(c => !!c.querySelector(".daub")));

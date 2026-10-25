@@ -54,6 +54,11 @@ body.view-phone .cardwrap{max-width:400px}
 .banner.lose{background:var(--pale);color:var(--forest)}
 .banner.warn{background:#fde8d4;color:#8a3d05}
 .elig{background:#fff3d6;border:2px solid var(--gold);color:#6b4a00;border-radius:14px;padding:10px 14px;margin:10px 0 4px;text-align:center;font-weight:700;font-size:.95em}
+.earlier{margin:18px auto 0;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.55;text-align:left}
+.earlier{overflow-wrap:anywhere}
+.earlier b{color:var(--forest);font-weight:700;white-space:nowrap}
+.earlier span{white-space:nowrap}
+.earlier span:not(:last-child)::after{content:" ·"}
 .conn{position:fixed;top:0;left:0;right:0;background:var(--orange);color:#fff;text-align:center;font-weight:700;padding:4px;z-index:20}
 </style>
 </head>
@@ -101,6 +106,7 @@ body.view-phone .cardwrap{max-width:400px}
       <div class="status" id="status"></div>
       <div id="banner"></div>
       <div class="claimrow"><button class="bingobtn" id="bingoBtn" type="button" disabled>BINGO!</button></div>
+      <div class="earlier hidden" id="earlier" aria-label="Earlier words"></div>
     </div>
   </section>
 </main>
@@ -147,7 +153,7 @@ if (gParam) $("codeField").classList.add("hidden");
 
 /* ---- game state ---- */
 let net = null, joined = false, wantJoin = null;
-let card = [], daubed = new Set(), called = new Set(), status = "lobby", winner = null, lastWord = "", gameNo = 0;
+let card = [], daubed = new Set(), called = new Set(), calledList = [], status = "lobby", winner = null, lastWord = "", gameNo = 0;
 
 function say(el, text) { $(el).textContent = text; }
 
@@ -198,9 +204,10 @@ function renderStatus() {
   const btn = $("bingoBtn");
   btn.disabled = status !== "playing";
   if (status === "lobby") say("status", "Waiting for the host to start…");
-  else if (status === "playing") $("status").innerHTML = lastWord ? `Last word: <b></b> &middot; ${called.size} drawn` : "Game on! Waiting for the first word…";
+  else if (status === "playing") $("status").innerHTML = lastWord ? `Current word: <b></b> &middot; ${called.size} drawn` : "Game on! Waiting for the first word…";
   else say("status", "");
   if (status === "playing" && lastWord) $("status").querySelector("b").textContent = lastWord;
+  renderEarlier();
   const ban = $("banner"); ban.innerHTML = "";
   if (status === "won" && winner) {
     const me = winner.pid === pid;
@@ -227,9 +234,19 @@ function renderElig() {
   el.textContent = barredText(barred); el.classList.toggle("hidden", !barred);
 }
 
+// Small print under the BINGO button: every word drawn before the current one, in order.
+function renderEarlier() {
+  const el = $("earlier"), prev = calledList.slice(0, -1);
+  el.classList.toggle("hidden", prev.length === 0);
+  el.textContent = "";
+  if (!prev.length) return;
+  const h = document.createElement("b"); h.textContent = "Earlier words:"; el.append(h, " ");
+  for (const w of prev) { const s = document.createElement("span"); s.textContent = w; el.append(s, " "); }
+}
+
 function applyWelcome(m) {
   joined = true; barred = m.barred || null; renderElig();
-  card = m.card; daubed = new Set(m.daubed || []); called = new Set((m.called || []).map(normWord));
+  card = m.card; daubed = new Set(m.daubed || []); called = new Set((m.called || []).map(normWord)); calledList = (m.called || []).slice();
   lastWord = (m.called || []).slice(-1)[0] || ""; status = m.status; winner = m.winner; gameNo = m.gameNo;
   $("join").classList.add("hidden"); $("game").classList.remove("hidden");
   $("whoAmI").innerHTML = `<small>Playing as</small> <span></span>`;
@@ -246,8 +263,8 @@ function flash(kindClass, text, ms = 3500) {
 function onMessage(m) {
   switch (m.t) {
     case "welcome": applyWelcome(m); break;
-    case "started": status = "playing"; called = new Set(); lastWord = ""; renderStatus(); break;
-    case "called": called.add(normWord(m.word)); lastWord = m.word; renderStatus(); break;
+    case "started": status = "playing"; called = new Set(); calledList = []; lastWord = ""; renderStatus(); break;
+    case "called": called.add(normWord(m.word)); calledList.push(m.word); lastWord = m.word; renderStatus(); break;
     case "winner": status = "won"; winner = m.winner; renderStatus(); break;
     case "eligibility": barred = m.barred || null; renderElig(); break;
     case "claimResult":
