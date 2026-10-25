@@ -5,12 +5,33 @@ import {
   checkClaim, cleanName, isWikiTreeId, makeCard, cardSignature, normWord, randInt
 } from "../../shared/bingo.js";
 import { parsePrizeWinners, idKey } from "../../shared/prizes.js";
+import { parsePeople } from "../../shared/results.js";
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";   // no I, L, O, 0, 1
 const MAX_PLAYERS = 500;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 const CLAIM_COOLDOWN_MS = 2000;
 const MAX_PRIZE_TEXT = 400000;
+const NAMES_TTL_MS = 10 * 60 * 1000;
+
+// ---- first and last names for the results page (WikiTree's API doesn't allow browser calls) ----
+const nameMemo = new Map();                                  // idKey -> { at, value }
+async function lookupNames(ids) {
+  const out = {}, need = [];
+  for (const id of ids) {
+    const k = idKey(id), hit = nameMemo.get(k);
+    if (hit && Date.now() - hit.at < NAMES_TTL_MS) { if (hit.value) out[k] = hit.value; } else need.push(id);
+  }
+  if (need.length) {
+    try {
+      const url = "https://api.wikitree.com/api.php?action=getPeople&appId=WikiTreeBingo&fields=Name,RealName,FirstName,LastNameAtBirth,LastNameCurrent&keys=" + encodeURIComponent(need.join(","));
+      const res = await fetch(url, { headers: { "User-Agent": "WikiTreeBingo/0.3 (+https://www.wikitree.com/wiki/Robinson-27225)" }, signal: AbortSignal.timeout(6000) });
+      const found = res.ok ? parsePeople(await res.json()) : {};
+      for (const [k, value] of Object.entries(found)) { nameMemo.set(k, { at: Date.now(), value }); out[k] = value; }
+    } catch (e) { /* names are a convenience: the host can type them in */ }
+  }
+  return out;
+}
 
 const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))]
   .map(b => b.toString(16).padStart(2, "0")).join("");
@@ -37,6 +58,11 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { headers: cors(request) });
     if (!originAllowed(request, env)) return new Response("Origin not allowed", { status: 403 });
+
+    if (url.pathname === "/api/profiles" && request.method === "GET") {
+      const ids = [...new Set((url.searchParams.get("ids") || "").split(",").map(s => s.trim()).filter(isWikiTreeId))].slice(0, 40);
+      return json(request, { names: ids.length ? await lookupNames(ids) : {} });
+    }
 
     if (url.pathname === "/api/rooms" && request.method === "POST") {
       let body = {};
@@ -101,7 +127,7 @@ export class BingoRoom {
     if (url.pathname === "/init") {
       if (this.room) return new Response("exists", { status: 409 });
       const { code, hostHash, words } = await request.json();
-      this.room = { code, hostHash, words, status: "lobby", called: [], pending: null, players: {}, winner: null, gameNo: 1, prize: null, sessionWinners: {} };
+      this.room = { code, hostHash, words, status: "lobby", called: [], pending: null, players: {}, winner: null, gameNo: 1, prize: null, sessionWinners: {}, winners: [] };
       await this.save();
       return new Response("ok");
     }
@@ -142,7 +168,7 @@ export class BingoRoom {
     const r = this.room;
     return {
       t: "hostState", code: r.code, status: r.status, words: r.words, called: r.called, pending: r.pending,
-      players: this.playerCount(), winner: r.winner, gameNo: r.gameNo, prize: this.prizeSummary()
+      players: this.playerCount(), winner: r.winner, gameNo: r.gameNo, prize: this.prizeSummary(), winners: r.winners || []
     };
   }
 
@@ -308,8 +334,10 @@ export class BingoRoom {
       r.status = "won";
       if (p.kind === "id") { r.sessionWinners = r.sessionWinners || {}; r.sessionWinners[idKey(p.name)] = new Date().toISOString().slice(0, 10); }
       r.winner = { pid, name: p.name, kind: p.kind, line, word: r.called[r.called.length - 1] || "" };
+      (r.winners = r.winners || []).push({ round: r.gameNo, name: p.name, kind: p.kind, word: r.winner.word, at: new Date().toISOString() });
       await this.save();
       this.toAll({ t: "winner", winner: { name: p.name, kind: p.kind, line, word: r.winner.word, pid } });
+      this.toHosts({ t: "winners", winners: r.winners });
     }
   }
 }

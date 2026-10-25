@@ -49,6 +49,11 @@ const prizePage = [
   await host.waitForFunction(() => /2 WikiTree IDs can't win/.test(document.getElementById("prizeLine").textContent));
   assert.ok(!(await host.$eval("#prizeDlg", d => d.open)), "the dialog closes once the list is accepted");
 
+  // the lobby shows a QR code that carries the direct join link
+  const qrBox = await host.$eval("#qrSvg svg", s => { const r = s.getBoundingClientRect(); return { w: r.width, h: r.height, paths: s.querySelectorAll("path").length }; });
+  assert.ok(qrBox.w > 100 && Math.abs(qrBox.w - qrBox.h) < 1 && qrBox.paths > 0, "QR code is drawn and square");
+  assert.equal(await host.$eval("#lobbyResults", e => e.classList.contains("hidden")), true, "no Results button before there is a winner");
+
   // the landing page passes ?g= on to the join link
   const land = await host.context().newPage();
   await land.goto(`${SITE}/index.html?g=${code}`);
@@ -103,6 +108,8 @@ const prizePage = [
   const called = [];
   const waitCalled = async n => host.waitForFunction(k => document.querySelectorAll("#ribbon .chip").length === k, n, { timeout: 15000 });
   await waitCalled(1);
+  assert.equal((await host.textContent("#stageJoin")).trim(), `Join at wikitree.s.gy/bingo?g=${code}`, "the stage shows how to join");
+  assert.ok(await host.$eval("#stageJoin", e => !e.classList.contains("hidden")));
   called.push(norm(await host.textContent("#ribbon .chip:last-child")).replace(/^\d+/, ""));
   await shot(host, "host-stage");
 
@@ -179,9 +186,29 @@ const prizePage = [
   await winner.p.waitForSelector(".banner.win");
   for (const pl of players) if (pl !== winner) await pl.p.waitForSelector(".banner.lose");
 
+  // ---- results page: the winner as WikiTree table rows ----
+  await host.click("#winResults");
+  await host.waitForSelector("#results.active");
+  assert.ok(!(await host.$eval("#win", e => e.classList.contains("show"))), "the celebration steps aside for the results page");
+  assert.match(await host.textContent("#winList"), new RegExp("Round 1: " + winner.who.replace(/[-]/g, "\\-")));
+  const ev = await host.inputValue("#evName");
+  assert.match(ev, /^WikiTree Bingo \w+ \d{4}$/, "default event name");
+  let markup = await host.inputValue("#markup");
+  const row = winner.who === "Cousin Sam" ? `| ||Cousin Sam||||${ev}` : `|${winner.who}||`;
+  assert.ok(markup.includes("|-\n" + row), "rows markup has the winner: " + markup);
+  await host.fill("#evName", "Bingo Night");
+  assert.ok((await host.inputValue("#markup")).includes("Bingo Night"), "changing the event name rebuilds the markup");
+  await host.click("#fmtTable");
+  markup = await host.inputValue("#markup");
+  assert.ok(markup.startsWith("=== Current Event Winners ===") && markup.endsWith("|}") && markup.includes("!WikiTree ID!!First!!Last!!Event"), "whole-table markup");
+  await shot(host, "host-results");
+  await host.click("#resBack");
+  await host.waitForSelector("#win.show");                       // back to the celebration, quietly
+
   // ---- new game: fresh cards, back to lobby ----
   await host.click("#newGame");
   await host.waitForSelector("#lobby.active");
+  await host.waitForFunction(() => /Results \(1\)/.test(document.getElementById("lobbyResults").textContent), null, { timeout: 5000 });
   await winner.p.waitForFunction(() => !document.querySelector(".banner"));
   assert.notDeepEqual(await cardOf(winner.p), winner.card, "new game deals a new card");
   console.log("E2E OK  code=%s winner=%s", code, winner.who);

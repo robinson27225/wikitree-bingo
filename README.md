@@ -26,6 +26,13 @@ Short link: https://wikitree.s.gy/bingo
 2. **Point the pages at it.** The deployed Worker URL is the default in `shared/config.js` (`WORKER_URL`); change it there if you redeploy under another name. Any page also accepts `?worker=https://…` to override it.
 3. **Pages.** Publish the repo root with GitHub Pages (Settings, Pages, branch `main`, folder `/`).
 
+## Joining, and the results page
+- The lobby shows the short link with the game code on the end, the code in large type, and a **QR code** that opens the player page with the code filled in. The QR code carries the direct link, so it works even if the short link is down.
+- During play, a **"Join at ..."** strip stays along the bottom of the stage for anyone arriving late from the stream.
+- After a win, choose **Results & prize table** on the winner screen (or **Results** in the lobby, which keeps every winner from the session). It lists the winners and writes them as rows for WikiTree's Prize Winners table, in the same layout as the Marathon Drawing tool: `|WikiTree ID||First||Last||Event`.
+  - Set the event name (it's remembered), then choose **Rows to add** or **Whole table** and **Copy to clipboard**.
+  - First and last names are looked up from each winner's WikiTree profile (the name they go by, and their current surname). Check them before pasting; any that couldn't be found are left blank to type in. Winners who joined with a username get a blank ID cell and the username in First.
+
 ## Prize eligibility
 Anyone who won a prize in the last 6 months can play but can't win. The list comes from WikiTree's [Prize Winners](https://www.wikitree.com/wiki/Space:Prize_Winners) page. WikiTree's bot protection stops servers from reading its pages automatically, so the host pastes the page in once per game:
 

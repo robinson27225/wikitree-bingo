@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WikiTree Bingo: Host</title>
-<link rel="icon" href="assets/logo-mark.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icon-16.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="stylesheet" href="shared/style.css">
 <style>
 :root{--hbg:#16301f;--hpanel:#1f3d2a;--hline:#35593f}
@@ -33,6 +36,22 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
 .bigcode{font-size:clamp(48px,min(12vw,15vh),130px);font-weight:700;letter-spacing:.14em;color:var(--gold);line-height:1;text-shadow:0 4px 0 rgba(0,0,0,.3)}
 .joinurl{font-size:clamp(20px,3.2vw,42px);color:var(--pale);word-break:break-all}
 .joinurl b{color:#fff}
+.joinrow{display:flex;gap:min(44px,4vw);align-items:center;justify-content:center;flex-wrap:wrap}
+.joincol{display:flex;flex-direction:column;align-items:center;gap:min(10px,1.4vh)}
+.qrbox{background:#fff;border-radius:18px;padding:12px 12px 8px;text-align:center;color:var(--forest);font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.qrbox svg{display:block;width:min(24vh,220px);height:min(24vh,220px)}
+.qrcap{font-size:15px;margin-top:4px}
+.stagejoin{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:6;background:rgba(0,0,0,.38);border:2px solid var(--hline);border-radius:999px;padding:5px 20px;font-size:clamp(14px,1.9vw,28px);color:var(--pale);white-space:nowrap;pointer-events:none}
+.stagejoin b{color:var(--gold)}
+.seg{display:inline-flex;border:2px solid var(--hline);border-radius:12px;overflow:hidden;background:#102418}
+.seg button{border-radius:0;background:transparent;color:var(--pale);padding:8px 18px;font-weight:700}
+.seg button[aria-pressed="true"]{background:var(--gold);color:var(--forest)}
+.winlist{margin:0;padding-left:22px;line-height:1.7}
+.winlist a{color:var(--gold)}
+.winlist small{color:#b9d1bd}
+.prizeout{min-height:200px;white-space:pre}
+.winbtns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+#win .ghost{margin-top:min(18px,2vh);font-size:clamp(16px,2vw,24px);padding:10px 26px;color:var(--pale);border-color:var(--pale);animation:fade .6s 1.4s both;position:relative}
 .plcount{font-size:clamp(20px,3vw,32px);color:var(--pale)}
 .prizeline{font-size:clamp(14px,1.6vw,19px);color:var(--pale);max-width:900px}
 .prizeline.warn{color:#ffb4a8}
@@ -156,9 +175,14 @@ dialog textarea{min-height:140px;margin:10px 0}
 <!-- LOBBY -->
 <main class="screen" id="lobby">
   <h1>Join the game</h1>
-  <div class="joinurl" id="joinUrl"></div>
-  <div class="bigcode" id="bigCode">----</div>
-  <div class="btnrow" style="justify-content:center"><button class="ghost" id="copyLink" type="button">Copy join link</button><button class="ghost" id="changeWords" type="button">Change word list</button></div>
+  <div class="joinrow">
+    <div class="joincol">
+      <div class="joinurl" id="joinUrl"></div>
+      <div class="bigcode" id="bigCode">----</div>
+      <div class="btnrow" style="justify-content:center"><button class="ghost" id="copyLink" type="button">Copy join link</button><button class="ghost" id="changeWords" type="button">Change word list</button><button class="ghost hidden" id="lobbyResults" type="button">Results</button></div>
+    </div>
+    <div class="qrbox" id="qrBox"><div id="qrSvg" role="img" aria-label="QR code to join the game"></div><div class="qrcap">Scan to join</div></div>
+  </div>
   <div class="plcount">Players waiting: <b id="lobbyCount">0</b></div>
   <div class="prizeline" id="prizeLine" role="status"></div>
   <button class="logobtn" id="startBtn" type="button" aria-label="Start the game"><img src="assets/logo-mark.png" alt=""><span>START</span></button>
@@ -186,13 +210,45 @@ dialog textarea{min-height:140px;margin:10px 0}
   </div>
 </main>
 
+<!-- RESULTS -->
+<main class="screen" id="results">
+  <h1>Results</h1>
+  <p class="sub">Winners this session. Copy them into WikiTree's Prize Winners page.</p>
+  <div class="panel">
+    <ol class="winlist" id="winList"></ol>
+    <div class="field" style="margin:0">
+      <label for="evName">Event name</label>
+      <input type="text" id="evName" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="field" style="margin:0">
+      <span class="lbl" id="fmtLbl">What to copy</span>
+      <div class="seg" role="group" aria-labelledby="fmtLbl"><button type="button" id="fmtRows" aria-pressed="true">Rows to add</button><button type="button" id="fmtTable" aria-pressed="false">Whole table</button></div>
+      <p class="hint" id="fmtHint"></p>
+    </div>
+    <div class="field" style="margin:0">
+      <label for="markup">WikiTree markup</label>
+      <textarea id="markup" class="prizeout" spellcheck="false" wrap="off"></textarea>
+      <div class="btnrow" style="margin-top:8px"><button class="primary" id="copyMarkup" type="button" style="flex:0 0 auto;font-size:1em;padding:10px 20px">Copy to clipboard</button></div>
+      <div class="hint" id="copyMsg" role="status" aria-live="polite" style="min-height:1.4em;margin-top:6px"></div>
+      <p class="hint" id="namesHint"></p>
+    </div>
+    <p class="hint"><a href="https://www.wikitree.com/wiki/Space:Prize_Winners" target="_blank" rel="noopener" style="color:var(--gold)">Open the Prize Winners page on WikiTree</a>, choose Edit on the Current Event Winners table, and paste the rows in.</p>
+    <div class="btnrow">
+      <button class="ghost" id="resBack" type="button">&larr; Back</button>
+      <button class="primary hidden" id="resNew" type="button" style="flex:1 1 200px">Start new game</button>
+    </div>
+  </div>
+</main>
+
+<div class="stagejoin hidden" id="stageJoin"></div>
+
 <!-- WIN -->
 <div id="win" role="alertdialog" aria-live="assertive" aria-label="Bingo winner">
   <canvas id="confetti"></canvas>
   <div class="bingos"><div>BINGO!</div><div>BINGO!</div><div>BINGO!</div></div>
   <div class="winner" id="winnerName"></div>
   <div class="winsub" id="winnerSub"></div>
-  <button class="primary" id="newGame" type="button">Start new game</button>
+  <div class="winbtns"><button class="primary" id="newGame" type="button">Start new game</button><button class="ghost" id="winResults" type="button">Results &amp; prize table</button></div>
 </div>
 
 <dialog id="prizeDlg">
@@ -211,16 +267,18 @@ dialog textarea{min-height:140px;margin:10px 0}
 <button class="mute" id="muteBtn" type="button" aria-pressed="true">Sound on</button>
 <footer class="site-foot" id="foot"></footer>
 
+<script src="shared/vendor/qrcode.js"></script>
 <script type="module">
 import { renderFooter, WORKER_URL, BALL_COLORS, SHORT_URL } from "./shared/config.js";
 import { connect, createRoom, store } from "./shared/net.js";
 import { parseCsv, MIN_WORDS } from "./shared/bingo.js";
 import { Sound } from "./shared/sound.js";
 import { fitText } from "./shared/fit.js";
+import { rowsMarkup, tableMarkup, defaultEventName, idKey } from "./shared/results.js";
 
 renderFooter(document.getElementById("foot"));
 const $ = id => document.getElementById(id);
-const show = id => { document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === id)); };
+const show = id => { document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === id)); $("stageJoin").classList.toggle("hidden", id !== "stage"); };
 
 const SAMPLE = ["Census","Birth certificate","Death certificate","Marriage license","Pedigree chart","Family group sheet","Obituary","Parish register","Immigration record","Passenger list","Naturalization papers","Military draft card","Land deed","Probate record","Will and testament","Tombstone photo","Cemetery plot","Family Bible","Oral history","DNA match","Haplogroup","Surname origin","Maiden name","Brick wall","Great-grandparent","Second cousin","Half sibling","Adoption record","Orphan train","Ship manifest","Church baptism","City directory","Newspaper clipping","Old photograph","Family reunion","Ellis Island","Homestead claim","Tax roll","Court record","Coat of arms","Genealogy society","Source citation","Research log","WikiTree ID","Profile badge","Connection finder","Name study","Unsourced profile"];
 
@@ -308,6 +366,7 @@ function onMessage(m) {
     case "started": state.status = "playing"; state.called = []; state.winner = null; renderAll(); doDraw(); break;
     case "drawn": spinTo(m.word); break;
     case "called": state.called.push(m.word); renderRibbon(); renderCounts(); break;
+    case "winners": state.winners = m.winners; renderCounts(); if ($("results").classList.contains("active")) { renderResults(); fetchNames(); } break;
     case "winner": state.status = "won"; state.winner = m.winner; celebrate(); break;
     case "exhausted": $("drawnLbl").textContent = "All words drawn"; $("nextBtn").disabled = true; break;
     case "error": $("setupErr").textContent = m.reason; if (changing) show("setup"); break;
@@ -343,7 +402,17 @@ function showToast(name, b) {
   t.classList.remove("hidden"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), 8000);
 }
 
+// The QR code carries the direct link (with the game code), so it works even if the short link is down.
+function renderQr() {
+  try {
+    const qr = window.qrcode(0, "M"); qr.addData(joinUrl()); qr.make();
+    $("qrSvg").innerHTML = qr.createSvgTag({ scalable: true, margin: 0, cellSize: 4 });
+  } catch (e) { $("qrBox").classList.add("hidden"); }
+}
+
 function renderCounts() {
+  $("lobbyResults").classList.toggle("hidden", !(state.winners && state.winners.length));
+  if (state.winners) $("lobbyResults").textContent = `Results (${state.winners.length})`;
   $("lobbyCount").textContent = state.players; $("stageCount").textContent = state.players;
   $("drawnCount").textContent = state.called.length; $("totalCount").textContent = state.words.length;
 }
@@ -371,6 +440,7 @@ function renderAll() {
   $("joinUrl").innerHTML = ""; const b = document.createElement("b"); b.textContent = shortLink().replace(/^https?:\/\//, "");
   $("joinUrl").append("Go to ", b);
   $("lobbyNote").textContent = `${state.words.length} words loaded`;
+  renderQr(); $("stageJoin").textContent = ""; { const b2 = document.createElement("b"); b2.textContent = shortLink().replace(/^https?:\/\//, ""); $("stageJoin").append("Join at ", b2); }
   renderPrize();
   if (state.status === "lobby") { hideWin(); show("lobby"); return; }
   show("stage");
@@ -533,7 +603,7 @@ const cage = (() => {
 
 /* ================= winner celebration ================= */
 let confettiRaf = 0, bingoTimers = [];
-function celebrate() {
+function celebrate(quiet = false) {
   const w = state.winner; if (!w) return;
   const el = $("winnerName"); el.innerHTML = "";
   if (w.kind === "id") { const a = document.createElement("a"); a.href = "https://www.wikitree.com/wiki/" + encodeURIComponent(w.name); a.target = "_blank"; a.rel = "noopener"; a.textContent = w.name; el.appendChild(a); }
@@ -542,6 +612,7 @@ function celebrate() {
   const win = $("win"); win.classList.add("show");
   const items = win.querySelectorAll(".bingos div"); items.forEach(d => d.classList.remove("go"));
   bingoTimers.forEach(clearTimeout); bingoTimers = [];
+  if (quiet) { items.forEach(d => d.classList.add("go")); startConfetti(); return; }          // coming back from the results page
   items.forEach((d, i) => bingoTimers.push(setTimeout(() => { void d.offsetWidth; d.classList.add("go"); }, 250 + i * 650)));
   Sound.stopAll(0.05); Sound.cheer();
   startConfetti();
@@ -565,6 +636,68 @@ function startConfetti() {
     confettiRaf = requestAnimationFrame(tick);
   })();
 }
+
+/* ================= results: the session's winners as WikiTree table rows ================= */
+let nameCache = {}, fmt = "rows", markupEdited = false, resumeStatus = "lobby";
+const evInput = $("evName");
+evInput.value = store.get("event") || defaultEventName();
+const fmtTime = iso => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+function renderResults() {
+  const ws = state.winners || [], ol = $("winList"); ol.textContent = "";
+  if (!ws.length) { const li = document.createElement("li"); li.textContent = "No winners yet."; ol.append(li); }
+  for (const w of ws) {
+    const li = document.createElement("li");
+    li.append(`Round ${w.round}: `);
+    if (w.kind === "id") { const a = document.createElement("a"); a.href = "https://www.wikitree.com/wiki/" + encodeURIComponent(w.name); a.target = "_blank"; a.rel = "noopener"; a.textContent = w.name; li.append(a); }
+    else li.append(w.name);
+    const sm = document.createElement("small"); sm.textContent = `  ·  ${w.word ? "“" + w.word + "”  ·  " : ""}${fmtTime(w.at)}`; li.append(sm);
+    ol.append(li);
+  }
+  $("fmtRows").setAttribute("aria-pressed", fmt === "rows"); $("fmtTable").setAttribute("aria-pressed", fmt === "table");
+  $("fmtHint").textContent = fmt === "rows" ? "Paste these rows into the existing table, just above its last line (the |} that closes the table)." : "Replace the whole Current Event Winners section with this table.";
+  rebuildMarkup(true);
+}
+function rebuildMarkup(force) {
+  if (markupEdited && !force) return;
+  const ws = state.winners || [], ev = evInput.value;
+  $("markup").value = ws.length ? (fmt === "rows" ? rowsMarkup(ws, nameCache, ev) : tableMarkup(ws, nameCache, ev)) : "";
+  markupEdited = false;
+  const missing = ws.filter(w => w.kind === "id" && !nameCache[idKey(w.name)]).length, users = ws.filter(w => w.kind !== "id").length;
+  $("namesHint").textContent = (missing ? `${missing} name${missing === 1 ? "" : "s"} couldn't be looked up on WikiTree: type them into the First and Last columns. ` : "First and last names come from the WikiTree profiles; check them before you paste. ")
+    + (users ? `${users} winner${users === 1 ? "" : "s"} joined with a username, so the WikiTree ID cell is blank.` : "");
+}
+async function fetchNames() {
+  const need = (state.winners || []).filter(w => w.kind === "id" && !nameCache[idKey(w.name)]).map(w => w.name);
+  if (!need.length) return;
+  $("namesHint").textContent = "Looking up names on WikiTree…";
+  try {
+    const res = await fetch(`${WORKER_URL}/api/profiles?ids=${encodeURIComponent([...new Set(need)].join(","))}`);
+    Object.assign(nameCache, (await res.json()).names || {});
+  } catch (e) { /* the rows still work, with blank names */ }
+  rebuildMarkup(false);
+}
+function openResults() {
+  resumeStatus = state.status;
+  $("win").classList.remove("show"); cancelAnimationFrame(confettiRaf); Sound.stopAll(0.2);
+  $("toast").classList.add("hidden");
+  $("resNew").classList.toggle("hidden", state.status !== "won");
+  markupEdited = false; renderResults(); show("results"); fetchNames();
+}
+$("winResults").onclick = openResults;
+$("lobbyResults").onclick = openResults;
+$("resBack").onclick = () => { if (state.status === "won") { show("stage"); celebrate(true); } else show(state.status === "lobby" ? "lobby" : "stage"); };
+$("resNew").onclick = () => { hideWin(); net.send({ t: "newGame" }); };
+$("fmtRows").onclick = () => { fmt = "rows"; renderResults(); };
+$("fmtTable").onclick = () => { fmt = "table"; renderResults(); };
+evInput.addEventListener("input", () => { store.set("event", evInput.value); markupEdited = false; rebuildMarkup(true); });
+$("markup").addEventListener("input", () => { markupEdited = true; });
+$("copyMarkup").onclick = async () => {
+  const t = $("markup").value;
+  try { await navigator.clipboard.writeText(t); }
+  catch (e) { $("markup").select(); try { document.execCommand("copy"); } catch (e2) {} }
+  $("copyMsg").textContent = "Copied. Now paste it into the table on WikiTree."; setTimeout(() => $("copyMsg").textContent = "", 5000);
+};
 
 /* ================= misc ================= */
 $("copyLink").onclick = async () => { try { await navigator.clipboard.writeText(shortLink()); $("copyLink").textContent = "Copied!"; setTimeout(() => $("copyLink").textContent = "Copy join link", 1800); } catch (e) { prompt("Copy this link", shortLink()); } };
