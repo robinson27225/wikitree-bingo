@@ -26,6 +26,20 @@ Short link: https://wikitree.s.gy/bingo
 2. **Point the pages at it.** The deployed Worker URL is the default in `shared/config.js` (`WORKER_URL`); change it there if you redeploy under another name. Any page also accepts `?worker=https://…` to override it.
 3. **Pages.** Publish the repo root with GitHub Pages (Settings, Pages, branch `main`, folder `/`).
 
+## Preparing events ahead of time
+For a day with several livestreams and several games each, prepare everything beforehand from the host page's first screen.
+
+1. **New event**: give it a name, for example "WikiTree Days 2026". Make one event for the whole day, or one per livestream.
+2. **Add a game** for each game: a name and its word list (drop in a CSV or paste the words; at least 24 words). Reorder, edit, copy or delete games at any time.
+3. **Paste the Prize Winners page** on the event screen (see Prize eligibility below). It is saved with the event, so each game doesn't need it pasted again, and the screen tells you how old it is. Paste it again just before you go live, in case more prizes were awarded.
+4. When the stream starts, press **Go live** on the first game. Players join with the code as usual.
+5. After a win, **Next game: ...** loads the next prepared game into the same room. Same code, same players, new cards for the new words, and you press START when you are ready. The lobby's **Game** menu lets you pick any prepared game instead.
+6. **Back to event** closes the room. Each game shows who won it.
+
+Anyone who won an earlier game of the event can keep playing but can't win again, and they are also marked as current-event winners for the games that follow. The **Results** button lists every winner across all the event's games, with a tick box for each. Copy the ones you want as rows for WikiTree's Current Event Winners table; rows you've already copied are left out next time.
+
+Events are saved in this browser. To prepare on one computer and run on another, or hand an event to a co-host, use **Export** (a small file) and **Import event**. The Worker needs to be version 0.4.0 or later; if it's older the page says so, and quick games still work.
+
 ## Joining, and the results page
 - The lobby shows the short link with the game code on the end, the code in large type, and a **QR code** that opens the player page with the code filled in. The QR code carries the direct link, so it works even if the short link is down.
 - During play, a **"Join at ..."** strip stays along the bottom of the stage for anyone arriving late from the stream.

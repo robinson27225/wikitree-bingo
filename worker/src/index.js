@@ -12,6 +12,7 @@ const MAX_PLAYERS = 500;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 const CLAIM_COOLDOWN_MS = 2000;
 const MAX_PRIZE_TEXT = 400000;
+const WORKER_VERSION = "0.4.0";
 const NAMES_TTL_MS = 10 * 60 * 1000;
 
 // ---- first and last names for the results page (WikiTree's API doesn't allow browser calls) ----
@@ -59,6 +60,8 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors(request) });
     if (!originAllowed(request, env)) return new Response("Origin not allowed", { status: 403 });
 
+    if (url.pathname === "/api/version" && request.method === "GET") return json(request, { version: WORKER_VERSION });
+
     if (url.pathname === "/api/profiles" && request.method === "GET") {
       const ids = [...new Set((url.searchParams.get("ids") || "").split(",").map(s => s.trim()).filter(isWikiTreeId))].slice(0, 40);
       return json(request, { names: ids.length ? await lookupNames(ids) : {} });
@@ -98,6 +101,16 @@ function sanitizeWords(input) {
     if (!k || seen.has(k)) continue;
     seen.add(k); out.push(t);
     if (out.length >= MAX_WORDS) break;
+  }
+  return out;
+}
+
+// Parsed Prize Winners data from the host's saved event: { idKey: "YYYY-MM-DD" | "current" }.
+function sanitizePrizeIds(input) {
+  const out = {};
+  if (!input || typeof input !== "object") return out;
+  for (const [k, v] of Object.entries(input).slice(0, 5000)) {
+    if (typeof v === "string" && (v === "current" || /^\d{4}-\d{2}-\d{2}$/.test(v)) && isWikiTreeId(k.replace(/_/g, " "))) out[k.toLowerCase().slice(0, 80)] = v;
   }
   return out;
 }
@@ -195,9 +208,33 @@ export class BingoRoom {
     this.room.prize = { ok: true, ids: r.ids, warnings: r.warnings, found: r.found, fetchedAt: new Date().toISOString() };
     await this.save();
     this.toHosts({ t: "prize", prize: this.prizeSummary() });
+    this.tellPlayersEligibility();
+  }
+
+  tellPlayersEligibility() {
     for (const pws of this.sockets("player")) {
       const a = pws.deserializeAttachment(), p = a && a.pid && this.room.players[a.pid];
       if (p) this.send(pws, { t: "eligibility", barred: this.barred(p) });
+    }
+  }
+  // The host saved the parsed Prize Winners page with the event, so there is nothing to paste again.
+  async setPrizeData(ws, data) {
+    const ids = sanitizePrizeIds(data && data.ids);
+    if (!data || !Object.keys(ids).length) return this.send(ws, { t: "prizeError", reason: "The saved Prize Winners list was empty. Paste the page again." });
+    this.room.prize = { ok: true, ids, warnings: Array.isArray(data.warnings) ? data.warnings.filter(w => typeof w === "string").slice(0, 5) : [], found: Math.max(0, +data.found || Object.keys(ids).length), fetchedAt: typeof data.at === "string" ? data.at.slice(0, 40) : new Date().toISOString() };
+    await this.save();
+    this.toHosts({ t: "prize", prize: this.prizeSummary() });
+    this.tellPlayersEligibility();
+  }
+  // After the words or the round change: new cards for everyone, then tell hosts and players.
+  async redealAndBroadcast() {
+    const r = this.room;
+    this.dealCards();
+    await this.save();
+    this.toHosts(this.hostState());
+    for (const pws of this.sockets("player")) {
+      const a = pws.deserializeAttachment();
+      if (a && a.pid && r.players[a.pid]) this.send(pws, this.playerState(a.pid));
     }
   }
 
@@ -240,15 +277,20 @@ export class BingoRoom {
         if (words.length < MIN_WORDS) return this.send(ws, { t: "error", reason: `Need at least ${MIN_WORDS} words` });
         r.words = words;
         r.called = []; r.pending = null; r.winner = null; r.status = "lobby";
-        this.dealCards();
-        await this.save();
-        this.toHosts(this.hostState());
-        for (const pws of this.sockets("player")) {
-          const a = pws.deserializeAttachment();
-          if (a && a.pid && r.players[a.pid]) this.send(pws, this.playerState(a.pid));
-        }
+        await this.redealAndBroadcast();
         break;
       }
+      case "loadGame": {                                    // the next prepared game, same code and players
+        if (r.status === "playing") return this.send(ws, { t: "error", reason: "A game is in progress" });
+        const words = sanitizeWords(msg.words);
+        if (words.length < MIN_WORDS) return this.send(ws, { t: "error", reason: `Need at least ${MIN_WORDS} words` });
+        r.words = words;
+        r.called = []; r.pending = null; r.winner = null; r.status = "lobby"; r.gameNo++;
+        await this.redealAndBroadcast();
+        this.tellPlayersEligibility();
+        break;
+      }
+      case "prizeData": await this.setPrizeData(ws, msg.data); break;
       case "prizeText": await this.setPrizeText(ws, msg.text); break;
       case "start":
         if (r.status !== "lobby") return;
@@ -278,13 +320,7 @@ export class BingoRoom {
         break;
       case "newGame":
         r.status = "lobby"; r.called = []; r.pending = null; r.winner = null; r.gameNo++;
-        this.dealCards();
-        await this.save();
-        this.toHosts(this.hostState());
-        for (const pws of this.sockets("player")) {
-          const a = pws.deserializeAttachment();
-          if (a && a.pid && r.players[a.pid]) this.send(pws, this.playerState(a.pid));
-        }
+        await this.redealAndBroadcast();
         break;
     }
   }

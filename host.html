@@ -52,6 +52,25 @@ textarea{width:100%;min-height:110px;font:15px/1.4 ui-monospace,Menlo,Consolas,m
 .prizeout{min-height:200px;white-space:pre}
 .winbtns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
 #win .ghost{margin-top:min(18px,2vh);font-size:clamp(16px,2vw,24px);padding:10px 26px;color:var(--pale);border-color:var(--pale);animation:fade .6s 1.4s both;position:relative}
+.evlist,.gamelist{display:flex;flex-direction:column;gap:10px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#102418;border:2px solid var(--hline);border-radius:14px;padding:10px 14px}
+.row .grow{flex:1 1 220px;min-width:0}
+.row .name{font-weight:700;font-size:1.08em;overflow-wrap:anywhere}
+.row .meta{color:#b9d1bd;font-size:.9em}
+.row .meta .tick{color:var(--lime);font-weight:700}
+.row .num{flex:none;width:30px;height:30px;border-radius:50%;background:var(--gold);color:var(--forest);font-weight:700;display:flex;align-items:center;justify-content:center}
+.row.played{opacity:.78}
+.row button{padding:6px 12px;font-size:.92em;border-radius:10px}
+.row .btns{display:flex;gap:6px;flex-wrap:wrap}
+.notice{border:2px solid var(--gold);border-radius:12px;padding:10px 14px;color:var(--butter);background:rgba(252,184,21,.08)}
+.filebtn{display:inline-flex;align-items:center;cursor:pointer;border-radius:12px;padding:12px 22px;font-weight:700}
+.gamebar{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;color:var(--pale)}
+.gamebar select{background:#102418;color:#f6faea;border:2px solid var(--hline);border-radius:10px;padding:6px 10px;font:inherit;max-width:60vw}
+.gamebar b{color:var(--gold)}
+.winlist li{list-style:none;margin-left:-22px;display:flex;gap:8px;align-items:baseline}
+.winlist li.copied{opacity:.6}
+.winlist input{accent-color:var(--gold);flex:none}
+dialog input[type=text]{margin:4px 0 10px}
 .plcount{font-size:clamp(20px,3vw,32px);color:var(--pale)}
 .prizeline{font-size:clamp(14px,1.6vw,19px);color:var(--pale);max-width:900px}
 .prizeline.warn{color:#ffb4a8}
@@ -137,9 +156,48 @@ dialog textarea{min-height:140px;margin:10px 0}
 <body class="dark">
 <div class="conn hidden" id="conn">Reconnecting to the game…</div>
 
-<!-- SETUP -->
-<main class="screen active" id="setup">
+<!-- HOME: prepared events -->
+<main class="screen active" id="home">
   <h1>WikiTree Bingo: Host</h1>
+  <p class="sub">Prepare your games ahead of time, or run a quick one.</p>
+  <div class="panel">
+    <div class="btnrow">
+      <button class="primary" id="newEvent" type="button" style="flex:1 1 160px">New event</button>
+      <label class="ghost filebtn" for="importFile">Import event<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+      <button class="ghost" id="quickGame" type="button">Quick game</button>
+    </div>
+    <div class="err" id="homeErr" role="alert"></div>
+    <div class="evlist" id="eventList"></div>
+    <div id="resumeBox" class="hidden">
+      <p class="hint">A game you hosted earlier is still open in this browser.</p>
+      <button class="ghost" id="resume" type="button"></button>
+    </div>
+  </div>
+</main>
+
+<!-- EVENT: prepare the games -->
+<main class="screen" id="event">
+  <h1 id="evTitle"></h1>
+  <p class="sub" id="evSub"></p>
+  <div class="panel">
+    <div class="notice hidden" id="workerWarn" role="alert"></div>
+    <div class="prizeline" id="evPrize" role="status"></div>
+    <div class="gamelist" id="gameList"></div>
+    <div class="btnrow"><button class="primary" id="addGame" type="button" style="flex:1 1 200px">Add a game</button></div>
+    <div class="err" id="eventErr" role="alert"></div>
+    <div class="btnrow">
+      <button class="ghost" id="evBack" type="button">&larr; All events</button>
+      <button class="ghost" id="evResults" type="button">Results</button>
+      <button class="ghost" id="evRename" type="button">Rename</button>
+      <button class="ghost" id="evExport" type="button">Export</button>
+      <button class="ghost" id="evDelete" type="button">Delete event</button>
+    </div>
+  </div>
+</main>
+
+<!-- SETUP (quick game) -->
+<main class="screen" id="setup">
+  <h1>Quick game</h1>
   <p class="sub" id="setupSub">Upload your list of words, then open the lobby for players.</p>
   <div class="panel">
     <div class="field" style="margin:0">
@@ -164,10 +222,7 @@ dialog textarea{min-height:140px;margin:10px 0}
     <div class="btnrow">
       <button class="primary" id="openLobby" type="button" disabled style="flex:1 1 240px">Open lobby</button>
       <button class="ghost hidden" id="cancelChange" type="button">Cancel</button>
-    </div>
-    <div id="resumeBox" class="hidden">
-      <p class="hint">A game you hosted earlier is still open in this browser.</p>
-      <button class="ghost" id="resume" type="button"></button>
+      <button class="ghost" id="setupBack" type="button">&larr; Events</button>
     </div>
   </div>
 </main>
@@ -183,6 +238,7 @@ dialog textarea{min-height:140px;margin:10px 0}
     </div>
     <div class="qrbox" id="qrBox"><div id="qrSvg" role="img" aria-label="QR code to join the game"></div><div class="qrcap">Scan to join</div></div>
   </div>
+  <div class="gamebar hidden" id="gameBar">Game: <select id="gameSel" aria-label="Game to play"></select><button class="ghost" id="backToEvent" type="button">&larr; Back to event</button></div>
   <div class="plcount">Players waiting: <b id="lobbyCount">0</b></div>
   <div class="prizeline" id="prizeLine" role="status"></div>
   <button class="logobtn" id="startBtn" type="button" aria-label="Start the game"><img src="assets/logo-mark.png" alt=""><span>START</span></button>
@@ -248,8 +304,31 @@ dialog textarea{min-height:140px;margin:10px 0}
   <div class="bingos"><div>BINGO!</div><div>BINGO!</div><div>BINGO!</div></div>
   <div class="winner" id="winnerName"></div>
   <div class="winsub" id="winnerSub"></div>
-  <div class="winbtns"><button class="primary" id="newGame" type="button">Start new game</button><button class="ghost" id="winResults" type="button">Results &amp; prize table</button></div>
+  <div class="winbtns"><button class="primary hidden" id="nextGame" type="button"></button><button class="primary" id="newGame" type="button">Start new game</button><button class="ghost" id="winResults" type="button">Results &amp; prize table</button></div>
 </div>
+
+<dialog id="nameDlg">
+  <h2 id="nameTitle">Event name</h2>
+  <label for="nameInput" class="hint">For example: WikiTree Days 2026, stream 1</label>
+  <input type="text" id="nameInput" maxlength="80" autocomplete="off" spellcheck="false">
+  <div class="err" id="nameErr" role="alert"></div>
+  <div class="btnrow"><button class="primary" id="nameOk" type="button" style="flex:1 1 160px">Save</button><button class="ghost" id="nameCancel" type="button">Cancel</button></div>
+</dialog>
+
+<dialog id="gameDlg">
+  <h2 id="gameTitle">Add a game</h2>
+  <label for="gName" class="hint">Game name</label>
+  <input type="text" id="gName" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Stream 1, game 1">
+  <label class="drop" id="gDrop" for="gFile" style="display:block;padding:14px">
+    <input type="file" id="gFile" accept=".csv,.txt,text/csv,text/plain">
+    <b>Drop a CSV file here, or click to choose one</b><br><span class="hint">One word or phrase per row. A header row is fine.</span>
+  </label>
+  <textarea id="gPaste" spellcheck="false" placeholder="…or paste the words here" style="margin-top:10px"></textarea>
+  <div class="btnrow"><button class="ghost" id="gSample" type="button">Use sample words</button></div>
+  <div class="count" id="gCount" role="status" aria-live="polite" style="margin-top:8px"></div>
+  <div class="err" id="gErr" role="alert"></div>
+  <div class="btnrow"><button class="primary" id="gSave" type="button" disabled style="flex:1 1 160px">Save game</button><button class="ghost" id="gCancel" type="button">Cancel</button></div>
+</dialog>
 
 <dialog id="prizeDlg">
   <h2>Prize Winners list</h2>
@@ -275,6 +354,8 @@ import { parseCsv, MIN_WORDS } from "./shared/bingo.js";
 import { Sound } from "./shared/sound.js";
 import { fitText } from "./shared/fit.js";
 import { rowsMarkup, tableMarkup, defaultEventName, idKey } from "./shared/results.js";
+import { parsePrizeWinners } from "./shared/prizes.js";
+import { newEvent, newGame, validateGame, moveGame, duplicateGame, removeGame, nextGameAfter, recordWinner, prizeIdsFor, exportEvent, importEvent, cleanEvent, ageText } from "./shared/events.js";
 
 renderFooter(document.getElementById("foot"));
 const $ = id => document.getElementById(id);
@@ -303,6 +384,8 @@ $("clear").onclick = () => { $("paste").value = ""; refreshWords(); };
 
 /* ================= connection ================= */
 let net = null, room = null;           // room = {code, hostKey}
+let ctx = null;                        // {eventId, gameId} while a prepared game is live
+let sendInit = false;                  // give the new room its Prize Winners data when it first reports in
 let state = { status: "lobby", words: [], called: [], pending: null, players: 0, winner: null };
 
 // What players are told to type or tap: the short link with the game code already on the end.
@@ -316,8 +399,9 @@ function joinUrl() {
   return u.href;
 }
 
+const persistRoom = () => { if (room) store.set("room", { ...room, ctx }); };
 function open(r) {
-  room = r; store.set("room", r);
+  room = { code: r.code, hostKey: r.hostKey }; persistRoom();
   if (net) net.close();
   net = connect(`/ws/${r.code}?role=host&key=${encodeURIComponent(r.hostKey)}`, {
     onMessage,
@@ -325,8 +409,9 @@ function open(r) {
       $("conn").classList.toggle("hidden", s === "open");
       if (s === "closed" && failures >= 3) {            // the saved game is gone or the key is wrong
         net.close(); store.del("room"); room = null;
-        $("setupErr").textContent = "That game is no longer available. Upload your words to start a new one.";
-        show("setup");
+        const was = ctx; ctx = null;
+        if (was && evById(was.eventId)) { viewId = was.eventId; $("eventErr").textContent = "That game is no longer available. Choose Go live to open it again."; renderEvent(); show("event"); }
+        else { $("setupErr").textContent = "That game is no longer available. Upload your words to start a new one."; show("setup"); }
       }
     }
   });
@@ -341,10 +426,12 @@ $("openLobby").addEventListener("click", async () => {
 });
 
 const saved = store.get("room");
-if (saved && saved.code) {
+function renderResume() {
+  if (!(saved && saved.code) || room) { $("resumeBox").classList.add("hidden"); return; }
+  const ev = saved.ctx && events.find(e => e.id === saved.ctx.eventId), g = ev && ev.games.find(x => x.id === saved.ctx.gameId);
   $("resumeBox").classList.remove("hidden");
-  $("resume").textContent = `Resume game ${saved.code}`;
-  $("resume").onclick = () => open(saved);
+  $("resume").textContent = `Resume game ${saved.code}` + (g ? ` (${ev.name}: ${g.name})` : "");
+  $("resume").onclick = () => { ctx = g ? { eventId: ev.id, gameId: g.id } : null; open({ code: saved.code, hostKey: saved.hostKey }); };
 }
 
 $("changeWords").onclick = () => {
@@ -358,7 +445,9 @@ function onMessage(m) {
     case "hostState":
       state = { ...state, ...m, players: m.players };
       if (changing) { changing = false; $("cancelChange").classList.add("hidden"); $("openLobby").textContent = "Open lobby"; $("setupSub").textContent = "Upload your list of words, then open the lobby for players."; }
-      renderAll(); break;
+      renderAll();
+      if (sendInit) { sendInit = false; pushPrize(); }
+      break;
     case "players": state.players = m.n; renderCounts(); break;
     case "prize": state.prize = m.prize; renderPrize(); $("prizeUse").disabled = false; $("prizeText").value = ""; if ($("prizeDlg").open) $("prizeDlg").close(); break;
     case "prizeError": $("prizeErr").textContent = m.reason; $("prizeUse").disabled = false; break;
@@ -367,9 +456,12 @@ function onMessage(m) {
     case "drawn": spinTo(m.word); break;
     case "called": state.called.push(m.word); renderRibbon(); renderCounts(); break;
     case "winners": state.winners = m.winners; renderCounts(); if ($("results").classList.contains("active")) { renderResults(); fetchNames(); } break;
-    case "winner": state.status = "won"; state.winner = m.winner; celebrate(); break;
+    case "winner":
+      state.status = "won"; state.winner = m.winner;
+      { const ev = ctx && curEvent(); if (ev) { recordWinner(ev, ctx.gameId, m.winner); persist(); } }
+      celebrate(); break;
     case "exhausted": $("drawnLbl").textContent = "All words drawn"; $("nextBtn").disabled = true; break;
-    case "error": $("setupErr").textContent = m.reason; if (changing) show("setup"); break;
+    case "error": if (ctx) { $("homeErr").textContent = ""; showToastText(m.reason); } else { $("setupErr").textContent = m.reason; if (changing) show("setup"); } break;
   }
 }
 
@@ -388,14 +480,31 @@ function renderPrize() {
   if (p.warnings && p.warnings.length) { el.classList.add("warn"); msg += ` ${p.warnings.length} heading${p.warnings.length === 1 ? "" : "s"} skipped: ${p.warnings[0]}.`; }
   el.textContent = msg; btn.textContent = "Update"; el.append(btn);
 }
+// The pasted Prize Winners page is read here, saved with the event (so each new room doesn't need it
+// pasted again), and handed to the room as data.
 $("prizeUse").onclick = () => {
   const text = $("prizeText").value;
   if (!text.trim()) { $("prizeErr").textContent = "Paste the page text first."; return; }
-  $("prizeErr").textContent = ""; $("prizeUse").disabled = true;
-  net.send({ t: "prizeText", text });
+  const r = parsePrizeWinners(text, new Date());
+  if (!r.found) { $("prizeErr").textContent = "I couldn't find any WikiTree IDs in that text. Open the Prize Winners page on WikiTree, press Ctrl+A (Cmd+A on a Mac), copy it, and paste it here."; return; }
+  const data = { ids: r.ids, found: r.found, warnings: r.warnings.slice(0, 5), at: new Date().toISOString() };
+  const ev = curEvent();
+  if (ev) { ev.prize = data; persist(); }
+  $("prizeErr").textContent = ""; $("prizeText").value = ""; $("prizeDlg").close();
+  if (room) pushPrize(data); else if (ev) renderEvent();
 };
+function pushPrize(quick) {
+  const ev = curEvent(); let data;
+  if (ev) {
+    const ids = prizeIdsFor(ev);
+    if (!Object.keys(ids).length) return;
+    data = { ids, found: ev.prize ? ev.prize.found : Object.keys(ids).length, warnings: ev.prize ? ev.prize.warnings : [], at: (ev.prize && ev.prize.at) || new Date().toISOString() };
+  } else data = quick;
+  if (data && net) net.send({ t: "prizeData", data });
+}
 $("prizeCancel").onclick = () => $("prizeDlg").close();
 let toastTimer = 0;
+function showToastText(text) { const t = $("toast"); t.textContent = text; t.classList.remove("hidden"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), 8000); }
 function showToast(name, b) {
   const when = b.reason === "session" ? "won earlier in this session" : b.date === "current" ? "already won at this event" : "won a prize on " + fmtDay(b.date);
   const t = $("toast"); t.textContent = `${name} has a line, but ${when}. The game goes on!`;
@@ -411,8 +520,9 @@ function renderQr() {
 }
 
 function renderCounts() {
-  $("lobbyResults").classList.toggle("hidden", !(state.winners && state.winners.length));
-  if (state.winners) $("lobbyResults").textContent = `Results (${state.winners.length})`;
+  const nWin = resultRows().length;
+  $("lobbyResults").classList.toggle("hidden", !nWin);
+  $("lobbyResults").textContent = `Results (${nWin})`;
   $("lobbyCount").textContent = state.players; $("stageCount").textContent = state.players;
   $("drawnCount").textContent = state.called.length; $("totalCount").textContent = state.words.length;
 }
@@ -441,7 +551,7 @@ function renderAll() {
   $("joinUrl").append("Go to ", b);
   $("lobbyNote").textContent = `${state.words.length} words loaded`;
   renderQr(); $("stageJoin").textContent = ""; { const b2 = document.createElement("b"); b2.textContent = shortLink().replace(/^https?:\/\//, ""); $("stageJoin").append("Join at ", b2); }
-  renderPrize();
+  renderPrize(); renderGameBar();
   if (state.status === "lobby") { hideWin(); show("lobby"); return; }
   show("stage");
   renderRibbon();
@@ -609,6 +719,10 @@ function celebrate(quiet = false) {
   if (w.kind === "id") { const a = document.createElement("a"); a.href = "https://www.wikitree.com/wiki/" + encodeURIComponent(w.name); a.target = "_blank"; a.rel = "noopener"; a.textContent = w.name; el.appendChild(a); }
   else el.textContent = w.name;
   $("winnerSub").textContent = w.word ? `Completed the line on “${w.word}”` : "";
+  const nextG = ctx && curEvent() ? nextGameAfter(curEvent(), ctx.gameId) : null;
+  $("nextGame").classList.toggle("hidden", !nextG);
+  if (nextG) $("nextGame").textContent = "Next game: " + nextG.name;
+  $("newGame").classList.toggle("primary", !nextG); $("newGame").classList.toggle("ghost", !!nextG);
   const win = $("win"); win.classList.add("show");
   const items = win.querySelectorAll(".bingos div"); items.forEach(d => d.classList.remove("go"));
   bingoTimers.forEach(clearTimeout); bingoTimers = [];
@@ -637,30 +751,41 @@ function startConfetti() {
   })();
 }
 
-/* ================= results: the session's winners as WikiTree table rows ================= */
-let nameCache = {}, fmt = "rows", markupEdited = false, resumeStatus = "lobby";
+/* ================= results: winners as WikiTree table rows (across all games of an event) ================= */
+let nameCache = {}, fmt = "rows", markupEdited = false, resultsFrom = "room";
+const resSel = new Set(), resKnown = new Set();
 const evInput = $("evName");
-evInput.value = store.get("event") || defaultEventName();
 const fmtTime = iso => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
+// One shape for both kinds of session: an event's winners (all games), or a quick game's.
+function resultRows() {
+  const ev = curEvent();
+  if (ev) return ev.winners;
+  return (state.winners || []).map(w => ({ id: w.at + "|" + w.name, game: "", round: w.round, name: w.name, kind: w.kind, word: w.word, at: w.at, copied: false }));
+}
 function renderResults() {
-  const ws = state.winners || [], ol = $("winList"); ol.textContent = "";
-  if (!ws.length) { const li = document.createElement("li"); li.textContent = "No winners yet."; ol.append(li); }
-  for (const w of ws) {
-    const li = document.createElement("li");
-    li.append(`Round ${w.round}: `);
-    if (w.kind === "id") { const a = document.createElement("a"); a.href = "https://www.wikitree.com/wiki/" + encodeURIComponent(w.name); a.target = "_blank"; a.rel = "noopener"; a.textContent = w.name; li.append(a); }
-    else li.append(w.name);
-    const sm = document.createElement("small"); sm.textContent = `  ·  ${w.word ? "“" + w.word + "”  ·  " : ""}${fmtTime(w.at)}`; li.append(sm);
-    ol.append(li);
+  const rows = resultRows(), ol = $("winList"); ol.textContent = "";
+  for (const r of rows) if (!resKnown.has(r.id)) { resKnown.add(r.id); if (!r.copied) resSel.add(r.id); }
+  if (!rows.length) { const li = document.createElement("li"); li.textContent = "No winners yet."; ol.append(li); }
+  for (const w of rows) {
+    const li = document.createElement("li"); if (w.copied) li.className = "copied";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = resSel.has(w.id); cb.setAttribute("aria-label", "Include " + w.name);
+    cb.onchange = () => { cb.checked ? resSel.add(w.id) : resSel.delete(w.id); markupEdited = false; rebuildMarkup(true); };
+    const span = document.createElement("span");
+    span.append(w.game ? `${w.game}, round ${w.round}: ` : `Round ${w.round}: `);
+    if (w.kind === "id") { const a = document.createElement("a"); a.href = "https://www.wikitree.com/wiki/" + encodeURIComponent(w.name); a.target = "_blank"; a.rel = "noopener"; a.textContent = w.name; span.append(a); }
+    else span.append(w.name);
+    const sm = document.createElement("small"); sm.textContent = `  ·  ${w.word ? "“" + w.word + "”  ·  " : ""}${fmtTime(w.at)}${w.copied ? "  ·  already copied" : ""}`; span.append(sm);
+    li.append(cb, span); ol.append(li);
   }
   $("fmtRows").setAttribute("aria-pressed", fmt === "rows"); $("fmtTable").setAttribute("aria-pressed", fmt === "table");
   $("fmtHint").textContent = fmt === "rows" ? "Paste these rows into the existing table, just above its last line (the |} that closes the table)." : "Replace the whole Current Event Winners section with this table.";
   rebuildMarkup(true);
 }
+const chosenRows = () => resultRows().filter(w => resSel.has(w.id));
 function rebuildMarkup(force) {
   if (markupEdited && !force) return;
-  const ws = state.winners || [], ev = evInput.value;
+  const ws = chosenRows(), ev = evInput.value;
   $("markup").value = ws.length ? (fmt === "rows" ? rowsMarkup(ws, nameCache, ev) : tableMarkup(ws, nameCache, ev)) : "";
   markupEdited = false;
   const missing = ws.filter(w => w.kind === "id" && !nameCache[idKey(w.name)]).length, users = ws.filter(w => w.kind !== "id").length;
@@ -668,7 +793,7 @@ function rebuildMarkup(force) {
     + (users ? `${users} winner${users === 1 ? "" : "s"} joined with a username, so the WikiTree ID cell is blank.` : "");
 }
 async function fetchNames() {
-  const need = (state.winners || []).filter(w => w.kind === "id" && !nameCache[idKey(w.name)]).map(w => w.name);
+  const need = resultRows().filter(w => w.kind === "id" && !nameCache[idKey(w.name)]).map(w => w.name);
   if (!need.length) return;
   $("namesHint").textContent = "Looking up names on WikiTree…";
   try {
@@ -677,27 +802,203 @@ async function fetchNames() {
   } catch (e) { /* the rows still work, with blank names */ }
   rebuildMarkup(false);
 }
-function openResults() {
-  resumeStatus = state.status;
+function openResults(from) {
+  resultsFrom = from;
   $("win").classList.remove("show"); cancelAnimationFrame(confettiRaf); Sound.stopAll(0.2);
   $("toast").classList.add("hidden");
-  $("resNew").classList.toggle("hidden", state.status !== "won");
+  $("resNew").classList.toggle("hidden", from !== "room" || state.status !== "won");
+  const ev = curEvent();
+  evInput.value = ev ? (ev.label || ev.name) : (store.get("event") || defaultEventName());
   markupEdited = false; renderResults(); show("results"); fetchNames();
 }
-$("winResults").onclick = openResults;
-$("lobbyResults").onclick = openResults;
-$("resBack").onclick = () => { if (state.status === "won") { show("stage"); celebrate(true); } else show(state.status === "lobby" ? "lobby" : "stage"); };
+$("winResults").onclick = () => openResults("room");
+$("lobbyResults").onclick = () => openResults("room");
+$("evResults").onclick = () => openResults("event");
+$("resBack").onclick = () => {
+  if (resultsFrom === "event") { renderEvent(); show("event"); }
+  else if (state.status === "won") { show("stage"); celebrate(true); }
+  else show(state.status === "lobby" ? "lobby" : "stage");
+};
 $("resNew").onclick = () => { hideWin(); net.send({ t: "newGame" }); };
 $("fmtRows").onclick = () => { fmt = "rows"; renderResults(); };
 $("fmtTable").onclick = () => { fmt = "table"; renderResults(); };
-evInput.addEventListener("input", () => { store.set("event", evInput.value); markupEdited = false; rebuildMarkup(true); });
+evInput.addEventListener("input", () => { const ev = curEvent(); if (ev) { ev.label = evInput.value; persist(); } else store.set("event", evInput.value); markupEdited = false; rebuildMarkup(true); });
 $("markup").addEventListener("input", () => { markupEdited = true; });
 $("copyMarkup").onclick = async () => {
   const t = $("markup").value;
   try { await navigator.clipboard.writeText(t); }
   catch (e) { $("markup").select(); try { document.execCommand("copy"); } catch (e2) {} }
+  const ev = curEvent();
+  if (ev && t.trim()) { for (const w of ev.winners) if (resSel.has(w.id)) { w.copied = true; resSel.delete(w.id); } persist(); renderResults(); }
   $("copyMsg").textContent = "Copied. Now paste it into the table on WikiTree."; setTimeout(() => $("copyMsg").textContent = "", 5000);
 };
+
+/* ================= events: prepared games, saved in this browser ================= */
+let events = (store.get("events") || []).map(cleanEvent).filter(r => r.ok).map(r => r.event);
+let viewId = null;                                     // the event shown on the event screen
+let workerState = { ok: true, text: "" };
+const evById = id => events.find(e => e.id === id) || null;
+const curEvent = () => evById(ctx ? ctx.eventId : viewId);
+function persist() {
+  try { localStorage.setItem("wtbingo-events", JSON.stringify(events)); return true; }
+  catch (e) { $("eventErr").textContent = "Couldn't save in this browser (storage is full or blocked). Use Export to keep a copy of this event."; return false; }
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function btn(text, fn, cls = "ghost", title) { const b = el("button", cls, text); b.type = "button"; b.onclick = fn; if (title) b.title = title; return b; }
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+function renderHome() {
+  const list = $("eventList"); list.textContent = "";
+  if (!events.length) list.append(el("p", "hint", "No events yet. Make one for each livestream, or one for the whole event, and add its games."));
+  for (const ev of events.slice().sort((a, b) => (b.created || "").localeCompare(a.created || ""))) {
+    const row = el("div", "row"), g = el("div", "grow");
+    g.append(el("div", "name", ev.name), el("div", "meta", `${plural(ev.games.length, "game")} · ${plural(ev.winners.length, "winner")}`));
+    const bs = el("div", "btns");
+    bs.append(btn("Open", () => openEvent(ev.id), "primary"), btn("Export", () => exportFile(ev)), btn("Delete", () => deleteEvent(ev)));
+    row.append(g, bs); list.append(row);
+  }
+  renderResume();
+}
+function openEvent(id) {
+  viewId = id; $("eventErr").textContent = ""; renderEvent(); show("event");
+  checkWorker().then(renderEvent);
+}
+function renderEvPrize(ev) {
+  const line = $("evPrize"); line.className = "prizeline"; line.textContent = "";
+  const b = btn(ev.prize ? "Update" : "Paste the Prize Winners page", () => { $("prizeErr").textContent = ""; $("prizeDlg").showModal(); $("prizeText").focus(); });
+  if (!ev.prize) { line.classList.add("warn"); line.textContent = "No Prize Winners list saved yet, so recent winners could win. Paste it close to going live. "; }
+  else {
+    const days = (Date.now() - Date.parse(ev.prize.at || "")) / 864e5, n = Object.keys(ev.prize.ids).length;
+    line.textContent = `Prize Winners list saved ${ageText(ev.prize.at) || "earlier"}: ${plural(n, "WikiTree ID")} can't win. `;
+    if (days >= 3) { line.classList.add("warn"); line.append("Paste the page again before you go live, in case more prizes were awarded. "); }
+  }
+  line.append(b);
+}
+function renderEvent() {
+  const ev = evById(viewId); if (!ev) { renderHome(); show("home"); return; }
+  $("evTitle").textContent = ev.name;
+  $("evSub").textContent = `${plural(ev.games.length, "game")}. Prepare them now and press Go live when the stream starts.`;
+  $("workerWarn").classList.toggle("hidden", workerState.ok); $("workerWarn").textContent = workerState.text;
+  renderEvPrize(ev);
+  $("evResults").textContent = `Results (${ev.winners.length})`;
+  const list = $("gameList"); list.textContent = "";
+  if (!ev.games.length) list.append(el("p", "hint", "No games yet. Add one with its list of words."));
+  ev.games.forEach((g, i) => {
+    const row = el("div", "row" + (g.playedAt ? " played" : "")), grow = el("div", "grow");
+    const meta = el("div", "meta", `${plural(g.words.length, "word")}`);
+    if (g.winner) { const t = el("span", "tick", `  ·  ✓ won by ${g.winner}`); meta.append(t); }
+    grow.append(el("div", "name", g.name), meta);
+    const bs = el("div", "btns");
+    const live = btn("Go live", () => goLive(g.id), "primary"); live.disabled = !workerState.ok; live.dataset.go = g.id;
+    const up = btn("↑", () => { moveGame(ev, g.id, -1); persist(); renderEvent(); }, "ghost", "Move up"), down = btn("↓", () => { moveGame(ev, g.id, 1); persist(); renderEvent(); }, "ghost", "Move down");
+    up.disabled = i === 0; down.disabled = i === ev.games.length - 1;
+    bs.append(live, btn("Edit", () => openGameDlg(g.id)), up, down, btn("Copy", () => { duplicateGame(ev, g.id); persist(); renderEvent(); }, "ghost", "Duplicate this game"), btn("Delete", () => { if (confirm(`Delete “${g.name}”?`)) { removeGame(ev, g.id); persist(); renderEvent(); } }));
+    row.append(el("div", "num", String(i + 1)), grow, bs); list.append(row);
+  });
+}
+async function checkWorker() {
+  try {
+    const res = await fetch(WORKER_URL + "/api/version"), j = await res.json().catch(() => null);
+    const [maj, min] = String((j && j.version) || "0.0").split(".").map(Number);
+    workerState = (maj > 0 || min >= 4) ? { ok: true, text: "" } : { ok: false, text: "The game server needs updating before events work. Deploy the Worker (npm run deploy:worker), then reload this page. Quick games still work." };
+  } catch (e) { workerState = { ok: false, text: `Can't reach the game server at ${WORKER_URL}. Is the Worker running?` }; }
+}
+
+$("newEvent").onclick = () => openNameDlg("New event", "", name => { const ev = newEvent(name); events.push(ev); persist(); openEvent(ev.id); });
+$("evRename").onclick = () => { const ev = evById(viewId); openNameDlg("Rename event", ev.name, name => { ev.name = name; persist(); renderEvent(); }); };
+$("evBack").onclick = () => { viewId = null; renderHome(); show("home"); };
+$("quickGame").onclick = () => show("setup");
+$("setupBack").onclick = () => { renderHome(); show("home"); };
+function deleteEvent(ev) { if (confirm(`Delete the event “${ev.name}”, its games and its winners list? Export it first if you want a copy.`)) { events = events.filter(e => e.id !== ev.id); persist(); viewId = null; renderHome(); show("home"); } }
+$("evDelete").onclick = () => deleteEvent(evById(viewId));
+
+// name dialog (new event, rename)
+let nameDone = null;
+function openNameDlg(title, value, done) { nameDone = done; $("nameTitle").textContent = title; $("nameInput").value = value; $("nameErr").textContent = ""; $("nameDlg").showModal(); $("nameInput").focus(); $("nameInput").select(); }
+$("nameOk").onclick = () => { const v = $("nameInput").value.replace(/\s+/g, " ").trim(); if (!v) { $("nameErr").textContent = "Give it a name."; return; } $("nameDlg").close(); nameDone && nameDone(v); };
+$("nameCancel").onclick = () => $("nameDlg").close();
+$("nameInput").addEventListener("keydown", e => { if (e.key === "Enter") $("nameOk").click(); });
+
+// export / import
+function exportFile(ev) {
+  const blob = new Blob([exportEvent(ev)], { type: "application/json" }), a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = ev.name.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() + ".wikitree-bingo.json";
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+$("evExport").onclick = () => exportFile(evById(viewId));
+$("importFile").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  const r = importEvent(await f.text(), events);
+  if (!r.ok) { $("homeErr").textContent = r.error; return; }
+  $("homeErr").textContent = ""; events.push(r.event); persist(); openEvent(r.event.id);
+};
+
+// add / edit a game
+let editingGame = null, gWords = [];
+function refreshGameWords() {
+  gWords = parseCsv($("gPaste").value);
+  const ok = gWords.length >= MIN_WORDS;
+  $("gCount").textContent = gWords.length ? `${gWords.length} words found${ok ? "" : `: need at least ${MIN_WORDS}`}` : "";
+  $("gCount").classList.toggle("bad", !!gWords.length && !ok);
+  $("gSave").disabled = !ok;
+}
+function openGameDlg(id) {
+  const ev = evById(viewId); editingGame = id ? ev.games.find(g => g.id === id) : null;
+  $("gameTitle").textContent = editingGame ? "Edit game" : "Add a game";
+  $("gName").value = editingGame ? editingGame.name : `Game ${ev.games.length + 1}`;
+  $("gPaste").value = editingGame ? editingGame.words.join("\n") : ""; $("gErr").textContent = "";
+  refreshGameWords(); $("gameDlg").showModal(); $("gName").focus(); $("gName").select();
+}
+$("addGame").onclick = () => openGameDlg(null);
+$("gPaste").addEventListener("input", refreshGameWords);
+$("gFile").addEventListener("change", e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { $("gPaste").value = String(r.result); refreshGameWords(); }; r.readAsText(f); });
+["dragenter", "dragover"].forEach(n => $("gDrop").addEventListener(n, e => { e.preventDefault(); $("gDrop").classList.add("over"); }));
+["dragleave", "drop"].forEach(n => $("gDrop").addEventListener(n, e => { e.preventDefault(); $("gDrop").classList.remove("over"); }));
+$("gDrop").addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { $("gPaste").value = String(r.result); refreshGameWords(); }; r.readAsText(f); });
+$("gSample").onclick = () => { $("gPaste").value = SAMPLE.join("\n"); refreshGameWords(); };
+$("gCancel").onclick = () => $("gameDlg").close();
+$("gSave").onclick = () => {
+  const ev = evById(viewId), g = { name: $("gName").value, words: gWords };
+  const errs = validateGame(g); if (errs.length) { $("gErr").textContent = errs[0]; return; }
+  if (editingGame) { editingGame.name = g.name.replace(/\s+/g, " ").trim(); editingGame.words = gWords; }
+  else ev.games.push(newGame(g.name, gWords));
+  persist(); $("gameDlg").close(); renderEvent();
+};
+
+// going live
+async function goLive(gid) {
+  const ev = evById(viewId), g = ev && ev.games.find(x => x.id === gid); if (!g) return;
+  const errs = validateGame(g); if (errs.length) { $("eventErr").textContent = errs[0]; return; }
+  $("eventErr").textContent = "";
+  try { const r = await createRoom(WORKER_URL, g.words); ctx = { eventId: ev.id, gameId: g.id }; sendInit = true; state = { status: "lobby", words: [], called: [], pending: null, players: 0, winner: null }; open(r); }
+  catch (e) { $("eventErr").textContent = e.message === "Failed to fetch" ? `Can't reach the game server at ${WORKER_URL}. Is the Worker running?` : e.message; }
+}
+function leaveRoom() {
+  if (net) net.close(); net = null; store.del("room"); room = null;
+  const id = ctx && ctx.eventId; ctx = null; hideWin();
+  if (id) { viewId = id; renderEvent(); show("event"); } else { renderHome(); show("home"); }
+}
+$("backToEvent").onclick = () => { if (!confirm("Close this game's code and go back to the event? Players will be disconnected.")) return; leaveRoom(); };
+
+// the lobby's game picker: choose any prepared game before pressing START
+function renderGameBar() {
+  const ev = ctx && curEvent(); $("gameBar").classList.toggle("hidden", !ev); $("changeWords").classList.toggle("hidden", !!ev);
+  if (!ev) return;
+  const sel = $("gameSel"); sel.textContent = "";
+  for (const g of ev.games) { const o = el("option", "", g.name + (g.winner ? "  ✓" : "")); o.value = g.id; if (g.id === ctx.gameId) o.selected = true; sel.append(o); }
+}
+$("gameSel").onchange = () => switchGame($("gameSel").value);
+function switchGame(id) {
+  const ev = curEvent(), g = ev && ev.games.find(x => x.id === id); if (!g || !net) return;
+  ctx.gameId = id; persistRoom();
+  net.send({ t: "loadGame", words: g.words }); pushPrize();
+}
+$("nextGame").onclick = () => {
+  const ev = curEvent(), g = ev && nextGameAfter(ev, ctx.gameId); if (!g) return;
+  hideWin(); switchGame(g.id);
+};
+
+renderHome();
 
 /* ================= misc ================= */
 $("copyLink").onclick = async () => { try { await navigator.clipboard.writeText(shortLink()); $("copyLink").textContent = "Copied!"; setTimeout(() => $("copyLink").textContent = "Copy join link", 1800); } catch (e) { prompt("Copy this link", shortLink()); } };
