@@ -62,11 +62,15 @@ body.view-phone .cardwrap{max-width:400px}
 .earlier b{color:var(--forest);font-weight:700;white-space:nowrap}
 .earlier span{white-space:nowrap}
 .earlier span:not(:last-child)::after{content:" ·"}
+.ended{position:fixed;inset:0;z-index:30;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center}
+.ended h1{color:var(--forest);font-size:1.7em}
+.ended p{color:var(--muted);max-width:30em}
 .conn{position:fixed;top:0;left:0;right:0;background:var(--orange);color:#fff;text-align:center;font-weight:700;padding:4px;z-index:20}
 </style>
 </head>
 <body class="view-phone">
 <div class="conn hidden" id="conn">Reconnecting…</div>
+<div class="ended hidden" id="ended" role="alert"><h1>This game has ended</h1><p id="endedText">The host ended this game. Thanks for playing!</p><a class="primary" href="player.html" style="text-decoration:none;border-radius:12px;padding:12px 22px;font-weight:700">Join another game</a></div>
 
 <main class="wrap">
   <!-- JOIN -->
@@ -263,6 +267,11 @@ function flash(kindClass, text, ms = 3500) {
   setTimeout(() => { if (status === "playing") ban.innerHTML = ""; }, ms);
 }
 
+function showEnded(text) {
+  if (net) net.close();
+  $("endedText").textContent = text; $("ended").classList.remove("hidden"); $("conn").classList.add("hidden");
+}
+
 function onMessage(m) {
   switch (m.t) {
     case "welcome": applyWelcome(m); break;
@@ -274,6 +283,7 @@ function onMessage(m) {
       if (!m.ok && m.reason === "ineligible") { barred = m.barred; renderElig(); flash("warn", "You have a line, but you can't win this round.", 6000); break; }
       if (!m.ok) flash("warn", m.reason === "wait" ? "One moment, then try again" : m.reason === "over" ? "This round is already over" : "Not yet. Keep daubing!");
       break;
+    case "closed": showEnded("The host ended this game. Thanks for playing!"); break;
     case "error":
       if (!joined) { say("joinErr", m.reason); $("joinBtn").disabled = false; wantJoin = null; }
       break;
@@ -287,6 +297,7 @@ function startConnection(code) {
     onMessage,
     onStatus(state, failures) {
       $("conn").classList.toggle("hidden", state === "open" || !joined);
+      if (joined && failures >= 4) showEnded("This game is no longer available. It may have been closed by the host.");
       if (!joined && failures >= 3) {
         say("joinErr", "Can't reach that game. Check the code and try again.");
         $("joinBtn").disabled = false;

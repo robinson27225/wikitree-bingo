@@ -330,6 +330,66 @@ const prizePage = [
   assert.equal((await evp.$$("#gameList .row")).length, 2);
   assert.equal(await evp.textContent("#evResults"), "Results (2)");
   await evp.setInputFiles("#importFile", { name: "bad.json", mimeType: "application/json", buffer: Buffer.from("nope") }).catch(() => {});
+  // ============ ending a game ============
+  const h3 = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
+  h3.on("pageerror", e => { throw e; }); h3.on("dialog", d => d.accept());
+  const quickLobby = async () => {
+    await h3.goto(`${SITE}/host.html?${q}&fast`); await h3.click("#quickGame");
+    await h3.fill("#paste", words24); await h3.click("#openLobby"); await h3.waitForSelector("#lobby.active");
+    const c = (await h3.textContent("#bigCode")).trim();
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } }), p = await ctx.newPage();
+    p.on("pageerror", e => { throw e; });
+    await p.goto(`${SITE}/player.html?g=${c}&${q}`); await p.fill("#who", "Quitter-1"); await p.click("#joinBtn"); await p.waitForSelector("#game:not(.hidden)");
+    await h3.waitForFunction(() => document.getElementById("lobbyCount").textContent === "1");
+    return { c, p };
+  };
+  const endedFor = async p => { await p.waitForSelector("#ended:not(.hidden)", { timeout: 8000 }); assert.match(await p.textContent("#ended"), /host ended this game/); };
+  const gone = c => new Promise((resolve, reject) => {          // a closed room refuses new connections
+    const ws = new WebSocket(WORKER.replace(/^http/, "ws") + "/ws/" + c);
+    const t = setTimeout(() => reject(new Error("room " + c + " is still reachable")), 8000);
+    ws.onopen = () => { clearTimeout(t); ws.close(); reject(new Error("room " + c + " is still open")); };
+    ws.onerror = ws.onclose = () => { clearTimeout(t); resolve(); };
+  });
+
+  // 1. from the lobby of a quick game
+  let g1 = await quickLobby();
+  await h3.click("#endQuick");
+  await h3.waitForSelector("#home.active");
+  await endedFor(g1.p);
+  assert.ok(await h3.$eval("#resumeBox", e => e.classList.contains("hidden")), "nothing left to resume");
+  assert.equal(await h3.evaluate(() => localStorage.getItem("wtbingo-room")), null);
+  await gone(g1.c);
+
+  // 2. from the stage, mid-game
+  g1 = await quickLobby();
+  await h3.click("#startBtn", { force: true }); await h3.waitForSelector("#stage.active");
+  await h3.waitForFunction(() => document.querySelectorAll("#ribbon .chip").length === 1, null, { timeout: 15000 });
+  await shot(h3, "host-end-game");
+  await h3.click("#endGame");
+  await h3.waitForSelector("#home.active");
+  await endedFor(g1.p);
+  await gone(g1.c);
+
+  // 3. a game left open in the browser: the resume box can close it for good
+  g1 = await quickLobby();
+  await h3.reload();
+  await h3.waitForSelector("#resumeBox:not(.hidden)");
+  assert.match(await h3.textContent("#resume"), new RegExp("Resume game " + g1.c));
+  await shot(h3, "host-resume-box");
+  await h3.click("#discardSaved");
+  await h3.waitForSelector("#resumeBox.hidden", { state: "attached" });
+  await endedFor(g1.p);
+  await h3.reload();
+  assert.ok(await h3.$eval("#resumeBox", e => e.classList.contains("hidden")), "the closed game stays closed after a reload");
+  await gone(g1.c);
+
+  // 4. a prepared game: End game returns to its event
+  await h3.click("#newEvent"); await h3.fill("#nameInput", "Cancel test"); await h3.click("#nameOk"); await h3.waitForSelector("#event.active");
+  await h3.click("#addGame"); await h3.fill("#gPaste", words24); await h3.click("#gSave");
+  await h3.click("[data-go]"); await h3.waitForSelector("#lobby.active");
+  await h3.click("#backToEvent"); await h3.waitForSelector("#event.active");
+  assert.equal(await h3.textContent("#evTitle"), "Cancel test");
+
   console.log("E2E OK  code=%s winner=%s", code, winner.who);
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

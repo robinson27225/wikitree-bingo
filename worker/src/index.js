@@ -12,7 +12,7 @@ const MAX_PLAYERS = 500;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 const CLAIM_COOLDOWN_MS = 2000;
 const MAX_PRIZE_TEXT = 400000;
-const WORKER_VERSION = "0.4.0";
+const WORKER_VERSION = "0.4.1";
 const NAMES_TTL_MS = 10 * 60 * 1000;
 
 // ---- first and last names for the results page (WikiTree's API doesn't allow browser calls) ----
@@ -291,6 +291,14 @@ export class BingoRoom {
         break;
       }
       case "prizeData": await this.setPrizeData(ws, msg.data); break;
+      case "closeRoom": {                                   // the host ended the game: tell everyone, disconnect them, forget the room
+        this.toPlayers({ t: "closed" });
+        for (const sock of this.state.getWebSockets()) { try { sock.close(1000, "The host ended this game"); } catch (e) {} }
+        try { await this.state.storage.deleteAlarm(); } catch (e) {}
+        await this.state.storage.deleteAll();
+        this.room = null;
+        break;
+      }
       case "prizeText": await this.setPrizeText(ws, msg.text); break;
       case "start":
         if (r.status !== "lobby") return;

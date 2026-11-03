@@ -40,6 +40,11 @@ Anyone who won an earlier game of the event can keep playing but can't win again
 
 Events are saved in this browser. To prepare on one computer and run on another, or hand an event to a co-host, use **Export** (a small file) and **Import event**. The Worker needs to be version 0.4.0 or later; if it's older the page says so, and quick games still work.
 
+## Ending or cancelling a game
+- **End game** is in the lobby (quick games), at the bottom right of the stage next to Sound, and as **Back to event** for a prepared game. It asks for confirmation, then closes the code: players see "This game has ended" and the room is deleted.
+- If a game is left open in the browser (a refresh, a closed tab), the first screen offers **Resume game ...** and **Close this game**. Closing it also ends it for any players still connected.
+- Rooms that nobody closes are deleted automatically after 24 hours.
+
 ## Joining, and the results page
 - The lobby shows the short link with the game code on the end, the code in large type, and a **QR code** that opens the player page with the code filled in. The QR code carries the direct link, so it works even if the short link is down.
 - During play, a **"Join at ..."** strip stays along the bottom of the stage for anyone arriving late from the stream.
