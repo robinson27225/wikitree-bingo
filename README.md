@@ -27,18 +27,18 @@ Short link: https://wikitree.s.gy/bingo
 3. **Pages.** Publish the repo root with GitHub Pages (Settings, Pages, branch `main`, folder `/`).
 
 ## Preparing events ahead of time
-For a day with several livestreams and several games each, prepare everything beforehand from the host page's first screen.
+One livestream = one set of words, reused for every game of that livestream. For a day with several livestreams, prepare one event per livestream beforehand from the host page's first screen.
 
-1. **New event**: give it a name, for example "WikiTree Days 2026". Make one event for the whole day, or one per livestream.
-2. **Add a game** for each game: a name and its word list (drop in a CSV or paste the words; at least 24 words). Reorder, edit, copy or delete games at any time.
-3. **Paste the Prize Winners page** on the event screen (see Prize eligibility below). It is saved with the event, so each game doesn't need it pasted again, and the screen tells you how old it is. Paste it again just before you go live, in case more prizes were awarded.
-4. When the stream starts, press **Go live** on the first game. Players join with the code as usual.
-5. After a win, **Next game: ...** loads the next prepared game into the same room. Same code, same players, new cards for the new words, and you press START when you are ready. The lobby's **Game** menu lets you pick any prepared game instead.
-6. **Back to event** closes the room. Each game shows who won it.
+1. **New event**: name it after the livestream, for example "WikiTree Days 2026, stream 1".
+2. **Add the words**: drop in a CSV or paste them (at least 24). You can edit them any time before going live.
+3. **Paste the Prize Winners page** on the event screen (see Prize eligibility below). It is saved with the event, and the screen tells you how old it is. Paste it again just before you go live, in case more prizes were awarded.
+4. When the stream starts, press **Go live**. Players join with the code as usual.
+5. After a win, **Start new game** deals everyone a fresh card from the same words, on the same code. The lobby shows which game is next ("Game 2").
+6. **Back to event** (or **End game**) closes the room. The event screen lists who won each game.
 
-Anyone who won an earlier game of the event can keep playing but can't win again, and they are also marked as current-event winners for the games that follow. The **Results** button lists every winner across all the event's games, with a tick box for each. Copy the ones you want as rows for WikiTree's Current Event Winners table; rows you've already copied are left out next time.
+Anyone who won an earlier game of the livestream can keep playing but can't win again, and they count as current-event winners if you go live again with the same event. The **Results** button lists every winner across all the games, with a tick box for each. Copy the ones you want as rows for WikiTree's Current Event Winners table; rows you've already copied are left out next time.
 
-Events are saved in this browser. To prepare on one computer and run on another, or hand an event to a co-host, use **Export** (a small file) and **Import event**. The Worker needs to be version 0.4.0 or later; if it's older the page says so, and quick games still work.
+Events are saved in this browser. To prepare on one computer and run on another, or hand an event to a co-host, use **Export** (a small file) and **Import event**. Events saved by version 0.4.0 or 0.4.1, which had several word lists per event, are split automatically into one event per game, keeping each list. The Worker needs to be version 0.4.0 or later; if it's older the page says so, and quick games still work.
 
 ## Ending or cancelling a game
 - **End game** is in the lobby (quick games), at the bottom right of the stage next to Sound, and as **Back to event** for a prepared game. It asks for confirmation, then closes the code: players see "This game has ended" and the room is deleted.

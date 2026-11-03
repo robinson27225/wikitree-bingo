@@ -213,7 +213,7 @@ const prizePage = [
   await host.waitForFunction(() => /Results \(1\)/.test(document.getElementById("lobbyResults").textContent), null, { timeout: 5000 });
   await winner.p.waitForFunction(() => !document.querySelector(".banner"));
   assert.notDeepEqual(await cardOf(winner.p), winner.card, "new game deals a new card");
-  // ============ a prepared event: two games, same code, next game loads ============
+  // ============ a prepared livestream: one set of words, two games on the same code ============
   const evp = await (await browser.newContext({ viewport: { width: 1280, height: 720 }, acceptDownloads: true })).newPage();
   evp.on("pageerror", e => { throw e; });
   evp.on("dialog", d => d.accept());                              // confirm() on delete / back to event
@@ -223,32 +223,29 @@ const prizePage = [
   await evp.waitForSelector("#event.active");
   assert.equal(await evp.textContent("#evTitle"), "WikiTree Days 2026");
   assert.match(await evp.textContent("#evPrize"), /No Prize Winners list saved/, "a missing list is flagged");
-  const addGame = async (name, prefix) => {
-    await evp.click("#addGame"); await evp.fill("#gName", name);
-    await evp.fill("#gPaste", Array.from({ length: 24 }, (_, i) => `${prefix} ${i + 1}`).join("\n"));
-    assert.equal(await evp.$eval("#gSave", b => b.disabled), false);
-    await evp.click("#gSave");
-  };
-  await evp.click("#addGame"); await evp.fill("#gPaste", "only three\nwords\nhere");
+  assert.equal(await evp.$eval("#goLive", b => b.disabled), true, "can't go live without words");
+  assert.ok(!(await evp.$("#gameList")), "there is no list of games: one livestream has one set of words");
+  await evp.click("#editWords"); await evp.fill("#gPaste", "only three\nwords\nhere");
   assert.equal(await evp.$eval("#gSave", b => b.disabled), true, "fewer than 24 words can't be saved");
-  await evp.click("#gCancel");
-  await addGame("Stream 1, game 1", "Alpha"); await addGame("Stream 1, game 2", "Bravo");
-  assert.deepEqual(await evp.$$eval("#gameList .row .name", n => n.map(x => x.textContent)), ["Stream 1, game 1", "Stream 1, game 2"]);
+  await evp.fill("#gPaste", Array.from({ length: 24 }, (_, i) => `Alpha ${i + 1}`).join("\n"));
+  await evp.click("#gSave");
+  assert.equal(await evp.textContent("#wordsMeta"), "24 words");
+  assert.equal(await evp.$eval("#goLive", b => b.disabled), false);
   await evp.click("#evPrize button"); await evp.fill("#prizeText", prizePage); await evp.click("#prizeUse");
   await evp.waitForFunction(() => /Prize Winners list saved today: 2 WikiTree IDs/.test(document.getElementById("evPrize").textContent));
   await evp.reload();                                             // everything was saved in the browser
   await evp.waitForTimeout(500); await shot(evp, "events-home");
   await evp.click("#eventList .row button.primary");
   await evp.waitForSelector("#event.active");
-  assert.equal((await evp.$$("#gameList .row")).length, 2, "games survive a reload");
+  assert.equal(await evp.textContent("#wordsMeta"), "24 words", "the words survive a reload");
   await evp.waitForTimeout(500); await shot(evp, "event-prep");
 
-  await evp.click('[data-go]');
+  await evp.click("#goLive");
   await evp.waitForSelector("#lobby.active");
   const code2 = (await evp.textContent("#bigCode")).trim();
   await evp.waitForTimeout(500); await shot(evp, "event-lobby");
   await evp.waitForFunction(() => /2 WikiTree IDs can't win/.test(document.getElementById("prizeLine").textContent), null, { timeout: 8000 });
-  assert.equal(await evp.$eval("#gameSel", s => s.selectedOptions[0].textContent.trim()), "Stream 1, game 1");
+  assert.equal((await evp.textContent("#gameLabel")).trim(), "Game 1");
   const mkPlayer = async (kind, who) => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } }), p = await ctx.newPage();
     p.on("pageerror", e => { throw e; });
@@ -258,7 +255,7 @@ const prizePage = [
     return { p, who };
   };
   const pls = [await mkPlayer("id", "Robinson-27225"), await mkPlayer("id", "Smith-1"), await mkPlayer("name", "Cousin Sam")];
-  assert.ok((await cardOf(pls[0].p)).every((w, i) => i === 12 || /^Alpha \d+$/.test(w)), "game 1 cards use game 1's words");
+  assert.ok((await cardOf(pls[0].p)).every((w, i) => i === 12 || /^Alpha \d+$/.test(w)), "cards use the livestream's words");
   await evp.waitForFunction(() => document.getElementById("lobbyCount").textContent === "3");
   const ribbonOf = async h => h.$$eval("#ribbon .chip", cs => cs.map(c => c.textContent.replace(/^\d+/, "").trim()));
   const playUntilWin = async targetWho => {
@@ -281,28 +278,29 @@ const prizePage = [
   await playUntilWin("Robinson-27225");
   await evp.waitForSelector("#win.show");
   assert.equal((await evp.textContent("#winnerName")).trim(), "Robinson-27225");
-  assert.equal((await evp.textContent("#nextGame")).trim(), "Next game: Stream 1, game 2", "the winner screen offers the next prepared game");
-  await evp.waitForTimeout(2200); await shot(evp, "host-next-game");
+  assert.ok(!(await evp.$("#nextGame")), "there is no 'next game' step: the same words are reused");
+  await evp.waitForTimeout(2200); await shot(evp, "host-new-game");
+  const before = await cardOf(pls[0].p);
 
-  await evp.click("#nextGame");                                   // same code, new words, new cards
+  await evp.click("#newGame");                                    // same code, same words, new cards
   await evp.waitForSelector("#lobby.active");
   assert.equal((await evp.textContent("#bigCode")).trim(), code2, "the code stays the same");
-  assert.equal(await evp.$eval("#gameSel", s => s.selectedOptions[0].textContent.trim().replace(/\s*✓$/, "")), "Stream 1, game 2");
+  assert.equal((await evp.textContent("#gameLabel")).trim(), "Game 2");
   await pls[0].p.waitForFunction(() => document.querySelectorAll("#grid .cell").length === 25 && !document.querySelector(".banner"));
-  for (const pl of pls) assert.ok((await cardOf(pl.p)).every((w, i) => i === 12 || /^Bravo \d+$/.test(w)), pl.who + " got a game 2 card");
+  for (const pl of pls) assert.ok((await cardOf(pl.p)).every((w, i) => i === 12 || /^Alpha \d+$/.test(w)), pl.who + " still has the livestream's words");
+  assert.notDeepEqual(await cardOf(pls[0].p), before, "but a fresh card");
   assert.match(await pls[0].p.textContent("#eligNote"), /play for fun/, "last game's winner may play on but not win again");
   await evp.click("#startBtn", { force: true });
   await playUntilWin("Cousin Sam");                              // a username player can win
   await evp.waitForSelector("#win.show");
   assert.equal((await evp.textContent("#winnerName")).trim(), "Cousin Sam");
-  assert.ok(await evp.$eval("#nextGame", e => e.classList.contains("hidden")), "no next game after the last one");
 
   // results across both games
   await evp.click("#winResults");
   await evp.waitForSelector("#results.active");
   assert.equal((await evp.$$("#winList li")).length, 2);
   let t = await evp.textContent("#winList");
-  assert.ok(t.includes("Stream 1, game 1") && t.includes("Stream 1, game 2") && t.includes("Robinson-27225") && t.includes("Cousin Sam"));
+  assert.ok(t.includes("Game 1: Robinson-27225") && t.includes("Game 2: Cousin Sam"), t);
   let mk = await evp.inputValue("#markup");
   assert.ok(mk.includes("|Robinson-27225||") && mk.includes("| ||Cousin Sam||||"), "both games' winners are in the rows");
   await evp.waitForTimeout(400); await shot(evp, "event-results");
@@ -317,8 +315,8 @@ const prizePage = [
 
   // back to the event: both games show their winners; export and import round trip
   await evp.click("#backToEvent"); await evp.waitForSelector("#event.active");
-  assert.match(await evp.textContent("#gameList"), /won by Robinson-27225/);
-  assert.match(await evp.textContent("#gameList"), /won by Cousin Sam/);
+  assert.match(await evp.textContent("#evPlayed"), /Game 1 won by Robinson-27225/);
+  assert.match(await evp.textContent("#evPlayed"), /Game 2 won by Cousin Sam/);
   assert.equal(await evp.textContent("#evResults"), "Results (2)");
   const [dl] = await Promise.all([evp.waitForEvent("download"), evp.click("#evExport")]);
   assert.match(dl.suggestedFilename(), /^wikitree-days-2026\.wikitree-bingo\.json$/);
@@ -327,9 +325,24 @@ const prizePage = [
   await evp.setInputFiles("#importFile", file);
   await evp.waitForSelector("#event.active");
   assert.equal(await evp.textContent("#evTitle"), "WikiTree Days 2026 (2)");
-  assert.equal((await evp.$$("#gameList .row")).length, 2);
+  assert.equal(await evp.textContent("#wordsMeta"), "24 words");
   assert.equal(await evp.textContent("#evResults"), "Results (2)");
   await evp.setInputFiles("#importFile", { name: "bad.json", mimeType: "application/json", buffer: Buffer.from("nope") }).catch(() => {});
+  // ============ an event saved by v0.4.0 / v0.4.1 (several games) is split into one event per game ============
+  const mig = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
+  mig.on("pageerror", e => { throw e; });
+  const w30 = n => Array.from({ length: 30 }, (_, i) => `${n} ${i + 1}`);
+  await mig.addInitScript(old => { if (!localStorage.getItem("wtbingo-events")) localStorage.setItem("wtbingo-events", JSON.stringify(old)); }, [{
+    id: "abc123def", name: "Old event", created: "2026-10-01T00:00:00Z", prize: null,
+    games: [{ id: "g1aaaa", name: "Game one", words: w30("Old A") }, { id: "g2bbbb", name: "Game two", words: w30("Old B") }],
+    winners: [{ id: "w1", gameId: "g2bbbb", game: "Game two", round: 1, name: "Peasley-221", kind: "id", word: "x", at: "2026-10-02T00:00:00Z" }],
+  }]);
+  await mig.goto(`${SITE}/host.html?${q}`);
+  assert.deepEqual(await mig.$$eval("#eventList .row .name", n => n.map(x => x.textContent).sort()), ["Old event: Game one", "Old event: Game two"]);
+  assert.deepEqual(await mig.$$eval("#eventList .row .meta", n => n.map(x => x.textContent).sort()), ["30 words · 0 winners", "30 words · 1 winner"]);
+  await mig.reload();                                             // saved in the new shape: nothing doubles up
+  assert.equal((await mig.$$("#eventList .row")).length, 2);
+
   // ============ ending a game ============
   const h3 = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
   h3.on("pageerror", e => { throw e; }); h3.on("dialog", d => d.accept());
@@ -385,8 +398,8 @@ const prizePage = [
 
   // 4. a prepared game: End game returns to its event
   await h3.click("#newEvent"); await h3.fill("#nameInput", "Cancel test"); await h3.click("#nameOk"); await h3.waitForSelector("#event.active");
-  await h3.click("#addGame"); await h3.fill("#gPaste", words24); await h3.click("#gSave");
-  await h3.click("[data-go]"); await h3.waitForSelector("#lobby.active");
+  await h3.click("#editWords"); await h3.fill("#gPaste", words24); await h3.click("#gSave");
+  await h3.click("#goLive"); await h3.waitForSelector("#lobby.active");
   await h3.click("#backToEvent"); await h3.waitForSelector("#event.active");
   assert.equal(await h3.textContent("#evTitle"), "Cancel test");
 
